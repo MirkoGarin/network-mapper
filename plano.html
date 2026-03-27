@@ -1,0 +1,1380 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Plano del Depósito</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { background: #1a1a2e; font-family: Arial, sans-serif; color: #eee; overflow: hidden; height: 100vh; }
+
+  /* ─── Navbar ─────────────────────────────────────────── */
+  #navbar {
+    position: fixed; top: 0; left: 0; right: 0; z-index: 100;
+    transform: translateY(0); transition: transform 0.3s ease;
+  }
+  #navbar.hidden { transform: translateY(-100%); }
+  #header {
+    background: #16213e; padding: 10px 20px 10px 56px;
+    display: flex; align-items: center; justify-content: space-between;
+    border-bottom: 2px solid #0f3460; gap: 10px; flex-wrap: wrap;
+  }
+  #header h1 { font-size: 1.1em; color: #e94560; white-space: nowrap; }
+  #controls { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+  #legend {
+    background: #16213e; padding: 6px 20px;
+    display: flex; gap: 20px; flex-wrap: wrap;
+    border-bottom: 1px solid #0f3460; font-size: 0.78em;
+  }
+  .legend-item { display: flex; align-items: center; gap: 6px; }
+  .legend-line { width: 28px; height: 4px; border-radius: 2px; }
+
+  #toggle-btn {
+    position: fixed; top: 10px; left: 14px; z-index: 200;
+    background: none; border: none; color: #e94560;
+    font-size: 1.4em; cursor: pointer; padding: 2px; line-height: 1;
+  }
+  #toggle-btn:hover { color: #fff; background: none; }
+
+  /* ─── Buttons ────────────────────────────────────────── */
+  button {
+    background: #0f3460; border: 1px solid #e94560; color: #fff;
+    padding: 5px 12px; border-radius: 4px; cursor: pointer; font-size: 0.82em;
+  }
+  button:hover { background: #e94560; }
+  button.active { background: #e94560; }
+  #zoomLabel { font-size: 0.82em; min-width: 52px; text-align: center; color: #ccc; }
+  .nav-link {
+    background: #0f3460; border: 1px solid #e94560; color: #fff;
+    padding: 5px 12px; border-radius: 4px; font-size: 0.82em; text-decoration: none;
+  }
+  .nav-link:hover { background: #e94560; }
+
+  /* ─── Layout ─────────────────────────────────────────── */
+  #layout {
+    display: flex; height: 100vh; padding-top: 86px;
+    transition: padding-top 0.3s ease;
+  }
+  #layout.nav-hidden { padding-top: 0; }
+
+  /* ─── Left Panel ─────────────────────────────────────── */
+  #panel-left {
+    width: 270px; min-width: 270px; background: #16213e;
+    border-right: 1px solid #0f3460; display: flex; flex-direction: column;
+    overflow: hidden; z-index: 50;
+  }
+  #panel-left-header {
+    padding: 10px 12px 8px; border-bottom: 1px solid #0f3460; flex-shrink: 0;
+  }
+  #panel-left-header h3 { font-size: 0.82em; color: #e94560; margin-bottom: 8px; text-transform: uppercase; letter-spacing: 0.05em; }
+  #icon-search {
+    width: 100%; background: #0f3460; border: 1px solid #1a4a8a;
+    color: #eee; padding: 6px 10px; border-radius: 4px; font-size: 0.82em; outline: none;
+  }
+  #icon-search:focus { border-color: #e94560; }
+  #icons-list { flex: 1; overflow-y: auto; padding: 8px; }
+  #icons-list::-webkit-scrollbar { width: 5px; }
+  #icons-list::-webkit-scrollbar-track { background: #111; }
+  #icons-list::-webkit-scrollbar-thumb { background: #0f3460; border-radius: 3px; }
+  .icon-cat-group { margin-bottom: 10px; }
+  .icon-cat-label {
+    font-size: 0.7em; color: #e94560; text-transform: uppercase;
+    letter-spacing: 0.06em; padding: 4px 4px 6px; display: block;
+    border-bottom: 1px solid #0f3460; margin-bottom: 6px;
+  }
+  .icon-items { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; }
+  .icon-item {
+    background: #0f3460; border: 1px solid #1a4a8a; border-radius: 5px;
+    padding: 8px 4px 6px; display: flex; flex-direction: column;
+    align-items: center; gap: 4px; cursor: grab; transition: border-color 0.15s;
+    user-select: none;
+  }
+  .icon-item:hover { border-color: #e94560; }
+  .icon-item:active { cursor: grabbing; }
+  .icon-item img { width: 36px; height: 36px; object-fit: contain; pointer-events: none; }
+  .icon-item span { font-size: 0.65em; color: #bbb; text-align: center; word-break: break-word; line-height: 1.2; pointer-events: none; }
+  #icons-empty { color: #555; font-size: 0.82em; padding: 16px 4px; }
+
+  /* ─── Canvas Area ────────────────────────────────────── */
+  #canvas-area {
+    flex: 1; position: relative; overflow: hidden; background: #f5f0e8; cursor: grab;
+  }
+  #canvas-area:active { cursor: grabbing; }
+  #canvas-area.connect-mode { cursor: crosshair; }
+  #canvas { display: block; position: absolute; top: 0; left: 0; transform-origin: 0 0; }
+  #svg-overlay {
+    position: absolute; top: 0; left: 0;
+    transform-origin: 0 0; pointer-events: none; overflow: visible;
+  }
+  #svg-overlay.connect-mode { pointer-events: all; cursor: crosshair; }
+
+  /* ─── Right Panel ────────────────────────────────────── */
+  #panel-right {
+    width: 260px; min-width: 260px; background: #16213e;
+    border-left: 1px solid #0f3460; display: none; flex-direction: column;
+    overflow-y: auto; z-index: 50;
+  }
+  #panel-right.open { display: flex; }
+  #panel-right::-webkit-scrollbar { width: 5px; }
+  #panel-right::-webkit-scrollbar-track { background: #111; }
+  #panel-right::-webkit-scrollbar-thumb { background: #0f3460; border-radius: 3px; }
+  #panel-right-inner { padding: 14px 14px 20px; }
+  #panel-right h3 { font-size: 0.82em; color: #e94560; text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 14px; }
+  .prop-group { margin-bottom: 12px; }
+  .prop-label { font-size: 0.75em; color: #888; margin-bottom: 4px; display: block; }
+  .prop-input {
+    width: 100%; background: #0f3460; border: 1px solid #1a4a8a;
+    color: #eee; padding: 7px 9px; border-radius: 4px; font-size: 0.82em; outline: none;
+  }
+  .prop-input:focus { border-color: #e94560; }
+  .prop-select {
+    width: 100%; background: #0f3460; border: 1px solid #1a4a8a;
+    color: #eee; padding: 7px 9px; border-radius: 4px; font-size: 0.82em; outline: none;
+  }
+  .prop-select option { background: #0f3460; }
+  #panel-right .btn-row { display: flex; gap: 8px; margin-top: 14px; flex-wrap: wrap; }
+  #panel-right .btn-row button { font-size: 0.8em; flex: 1; }
+  .btn-danger { background: #5c1020 !important; border-color: #e94560 !important; }
+  .btn-danger:hover { background: #e94560 !important; }
+  #conn-list { margin-top: 12px; }
+  #conn-list h4 { font-size: 0.75em; color: #e94560; margin-bottom: 8px; }
+  .conn-item {
+    background: #0f3460; border-radius: 4px; padding: 7px 9px;
+    font-size: 0.75em; margin-bottom: 6px; display: flex;
+    justify-content: space-between; align-items: center; gap: 6px;
+  }
+  .conn-item-info { display: flex; align-items: center; gap: 6px; flex: 1; overflow: hidden; }
+  .conn-dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
+  .conn-label { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: #ccc; }
+  .conn-del { background: none; border: none; color: #e94560; cursor: pointer; padding: 0 2px; font-size: 1em; }
+  .conn-del:hover { color: #fff; background: none; }
+
+  /* ─── Context Menu ───────────────────────────────────── */
+  #ctx-menu {
+    position: fixed; background: #16213e; border: 1px solid #0f3460;
+    border-radius: 6px; padding: 4px 0; z-index: 1000; display: none;
+    min-width: 160px; box-shadow: 0 4px 20px rgba(0,0,0,0.5);
+  }
+  #ctx-menu div {
+    padding: 8px 16px; font-size: 0.85em; cursor: pointer; color: #eee;
+  }
+  #ctx-menu div:hover { background: #0f3460; }
+  #ctx-menu .ctx-danger { color: #e94560; }
+  #ctx-menu hr { border: none; border-top: 1px solid #0f3460; margin: 3px 0; }
+
+  /* ─── Modal ──────────────────────────────────────────── */
+  #modal-overlay {
+    position: fixed; inset: 0; background: rgba(0,0,0,0.65);
+    z-index: 500; display: none; align-items: center; justify-content: center;
+  }
+  #modal-overlay.open { display: flex; }
+  #modal-box {
+    background: #16213e; border: 1px solid #0f3460; border-radius: 8px;
+    padding: 24px; width: 340px; max-width: 95vw;
+  }
+  #modal-box h3 { font-size: 0.95em; color: #e94560; margin-bottom: 18px; }
+  #modal-box .form-row { margin-bottom: 14px; }
+  #modal-box .form-row label { font-size: 0.78em; color: #888; display: block; margin-bottom: 5px; }
+  #modal-box .form-row input,
+  #modal-box .form-row select {
+    width: 100%; background: #0f3460; border: 1px solid #1a4a8a;
+    color: #eee; padding: 8px 10px; border-radius: 4px; font-size: 0.85em; outline: none;
+  }
+  #modal-box .form-row input:focus,
+  #modal-box .form-row select:focus { border-color: #e94560; }
+  #modal-box .btn-row { display: flex; gap: 10px; margin-top: 18px; }
+  #modal-box .btn-row button { flex: 1; padding: 8px; font-size: 0.85em; }
+  .color-preview { display: inline-block; width: 16px; height: 16px; border-radius: 3px; vertical-align: middle; margin-left: 6px; }
+
+  /* ─── Tabs panel izquierdo ───────────────────────────── */
+  #panel-tabs {
+    display: flex; border-bottom: 1px solid #0f3460; flex-shrink: 0;
+  }
+  .panel-tab {
+    flex: 1; padding: 8px 4px; font-size: 0.75em; text-align: center;
+    color: #888; cursor: pointer; border-bottom: 2px solid transparent;
+    transition: color 0.15s, border-color 0.15s; user-select: none;
+    text-transform: uppercase; letter-spacing: 0.05em;
+  }
+  .panel-tab:hover { color: #eee; }
+  .panel-tab.active { color: #e94560; border-bottom-color: #e94560; }
+
+  /* ─── Capas panel ────────────────────────────────────── */
+  #panel-capas { flex: 1; overflow-y: auto; padding: 8px; display: none; flex-direction: column; gap: 4px; }
+  #panel-capas.active { display: flex; }
+  #panel-icons-wrap { flex: 1; overflow-y: auto; display: flex; flex-direction: column; }
+  #panel-icons-wrap.hidden { display: none; }
+
+  .capa-row {
+    display: flex; align-items: center; gap: 8px;
+    background: #0f3460; border: 1px solid #1a4a8a;
+    border-radius: 5px; padding: 7px 9px;
+    cursor: pointer; transition: border-color 0.15s;
+  }
+  .capa-row:hover { border-color: #e94560; }
+  .capa-row.active-layer { border-color: #e94560; background: #1a2a5e; }
+  .capa-color { width: 12px; height: 12px; border-radius: 50%; flex-shrink: 0; }
+  .capa-name { flex: 1; font-size: 0.8em; color: #ddd; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .capa-name.muted { color: #555; }
+  .capa-eye {
+    background: none; border: none; color: #aaa; cursor: pointer;
+    font-size: 1em; padding: 0 2px; flex-shrink: 0;
+  }
+  .capa-eye:hover { color: #fff; background: none; }
+  .capa-del {
+    background: none; border: none; color: #555; cursor: pointer;
+    font-size: 0.85em; padding: 0 2px; flex-shrink: 0;
+  }
+  .capa-del:hover { color: #e94560; background: none; }
+  #btn-add-capa {
+    margin-top: 6px; width: 100%; font-size: 0.78em;
+    background: #0f3460; border: 1px dashed #1a4a8a; color: #888;
+  }
+  #btn-add-capa:hover { border-color: #e94560; color: #eee; background: #0f3460; }
+  #active-capa-badge {
+    font-size: 0.7em; color: #888; padding: 4px 2px 2px;
+    text-align: center; flex-shrink: 0;
+  }
+  #active-capa-badge span { color: #e94560; font-weight: bold; }
+
+  /* ─── Drop ghost ─────────────────────────────────────── */
+  #drop-ghost {
+    position: fixed; pointer-events: none; display: none;
+    opacity: 0.75; z-index: 999;
+  }
+  #drop-ghost img { width: 40px; height: 40px; object-fit: contain; }
+
+  /* ─── SVG element styles ─────────────────────────────── */
+  .el-group { pointer-events: all; cursor: pointer; }
+  .el-group image { pointer-events: none; }
+  .el-group .el-label {
+    font-family: Arial, sans-serif; font-size: 11px;
+    fill: #222; pointer-events: none;
+  }
+  .el-group .el-ring {
+    fill: none; stroke: #e94560; stroke-width: 2;
+    opacity: 0; transition: opacity 0.15s;
+  }
+  .el-group.selected .el-ring { opacity: 1; }
+  .conn-line { pointer-events: stroke; cursor: pointer; stroke-width: 2.5; }
+  .conn-line.selected { stroke-width: 4; filter: drop-shadow(0 0 4px currentColor); }
+  .conn-label-text {
+    font-family: Arial, sans-serif; font-size: 10px;
+    fill: #333; pointer-events: none;
+  }
+  .connect-hint {
+    position: absolute; bottom: 12px; left: 50%; transform: translateX(-50%);
+    background: rgba(22,33,62,0.9); border: 1px solid #e94560;
+    color: #fff; padding: 7px 18px; border-radius: 20px; font-size: 0.82em;
+    pointer-events: none; white-space: nowrap;
+  }
+</style>
+</head>
+<body>
+
+<button id="toggle-btn" onclick="toggleNav()">&#9776;</button>
+
+<div id="navbar">
+  <div id="header">
+    <h1>Plano del Depósito</h1>
+    <div id="controls">
+      <button onclick="zoom(-1)">&#8722; Alejar</button>
+      <span id="zoomLabel">100%</span>
+      <button onclick="zoom(1)">&#43; Acercar</button>
+      <button onclick="resetView()">Resetear</button>
+      <label style="font-size:0.82em;display:flex;align-items:center;gap:5px;">
+        <input type="checkbox" id="toggleGrid" checked onchange="draw()"> Grilla (1.26m)
+      </label>
+      <button id="btn-connect" onclick="toggleConnectMode()">&#128279; Conectar</button>
+      <a href="iconos.html" class="nav-link">Iconos</a>
+    </div>
+  </div>
+  <div id="legend">
+    <div class="legend-item"><div class="legend-line" style="background:#222;"></div>&nbsp;Muro exterior</div>
+    <div class="legend-item"><div class="legend-line" style="background:#444;height:2px;"></div>&nbsp;Pared interior</div>
+    <div class="legend-item"><div class="legend-line" style="background:#00bb00;height:2px;"></div>&nbsp;Puerta / Salida</div>
+    <div class="legend-item" style="gap:4px;">
+      <div style="width:20px;height:3px;background:#4488ff;border-radius:1px;"></div>Ethernet
+      <div style="width:20px;height:3px;background:#ff8800;border-radius:1px;margin-left:8px;"></div>Fibra
+      <div style="width:20px;height:3px;background:#00cc88;border-radius:1px;margin-left:8px;"></div>WiFi
+      <div style="width:20px;height:3px;background:#cc44ff;border-radius:1px;margin-left:8px;"></div>Serial
+      <div style="width:20px;height:3px;background:#ffcc00;border-radius:1px;margin-left:8px;"></div>Consola
+    </div>
+  </div>
+</div>
+
+<div id="layout">
+  <!-- Left Panel -->
+  <div id="panel-left">
+    <div id="panel-tabs">
+      <div class="panel-tab active" id="tab-devices" onclick="switchTab('devices')">Dispositivos</div>
+      <div class="panel-tab" id="tab-capas" onclick="switchTab('capas')">Capas</div>
+    </div>
+    <!-- Tab Dispositivos -->
+    <div id="panel-icons-wrap">
+      <div id="panel-left-header">
+        <input type="text" id="icon-search" placeholder="Buscar icono..." oninput="filterIcons(this.value)">
+        <div id="active-capa-badge">Capa activa: <span id="active-capa-name">General</span></div>
+      </div>
+      <div id="icons-list">
+        <span id="icons-empty">Cargando iconos...</span>
+      </div>
+    </div>
+    <!-- Tab Capas -->
+    <div id="panel-capas">
+      <div id="capas-list"></div>
+      <button id="btn-add-capa" onclick="promptNuevaCapa()">+ Nueva capa</button>
+    </div>
+  </div>
+
+  <!-- Canvas Area -->
+  <div id="canvas-area">
+    <canvas id="canvas"></canvas>
+    <canvas id="conn-canvas" style="position:absolute;top:0;left:0;transform-origin:0 0;pointer-events:none;"></canvas>
+    <svg id="svg-overlay" width="100" height="100"></svg>
+    <div id="connect-hint" class="connect-hint" style="display:none;"></div>
+  </div>
+
+  <!-- Right Panel -->
+  <div id="panel-right">
+    <div id="panel-right-inner">
+      <h3>Propiedades</h3>
+      <div class="prop-group">
+        <label class="prop-label">Label</label>
+        <input type="text" class="prop-input" id="prop-label" placeholder="Nombre del dispositivo" oninput="propChanged()">
+      </div>
+      <div class="prop-group">
+        <label class="prop-label">Dirección IP</label>
+        <input type="text" class="prop-input" id="prop-ip" placeholder="192.168.1.1" oninput="propChanged()">
+      </div>
+      <div class="prop-group">
+        <label class="prop-label">MAC</label>
+        <input type="text" class="prop-input" id="prop-mac" placeholder="AA:BB:CC:DD:EE:FF" oninput="propChanged()">
+      </div>
+      <div class="prop-group">
+        <label class="prop-label">Sistema Operativo</label>
+        <input type="text" class="prop-input" id="prop-so" placeholder="Windows 11, Ubuntu 22.04..." oninput="propChanged()">
+      </div>
+      <div class="prop-group">
+        <label class="prop-label">Versión / Firmware</label>
+        <input type="text" class="prop-input" id="prop-version" placeholder="v1.0.0" oninput="propChanged()">
+      </div>
+      <div class="prop-group">
+        <label class="prop-label">RAM</label>
+        <input type="text" class="prop-input" id="prop-ram" placeholder="8 GB" oninput="propChanged()">
+      </div>
+      <div class="prop-group">
+        <label class="prop-label">Puertos</label>
+        <input type="text" class="prop-input" id="prop-puertos" placeholder="24x GE, 2x SFP+" oninput="propChanged()">
+      </div>
+      <div class="prop-group">
+        <label class="prop-label">Descripción</label>
+        <input type="text" class="prop-input" id="prop-desc" placeholder="Descripción" oninput="propChanged()">
+      </div>
+      <div class="prop-group">
+        <label class="prop-label">Tipo</label>
+        <input type="text" class="prop-input" id="prop-tipo" placeholder="Tipo de dispositivo" oninput="propChanged()">
+      </div>
+      <div class="prop-group">
+        <label class="prop-label">Estado</label>
+        <select class="prop-select" id="prop-estado" onchange="propChanged()">
+          <option value="activo">Activo</option>
+          <option value="inactivo">Inactivo</option>
+          <option value="mantenimiento">Mantenimiento</option>
+        </select>
+      </div>
+      <div class="prop-group">
+        <label class="prop-label">Capa</label>
+        <select class="prop-select" id="prop-capa" onchange="propChanged()"></select>
+      </div>
+      <div class="btn-row">
+        <button onclick="saveProps()">Guardar</button>
+        <button class="btn-danger" onclick="deleteSelected()">Eliminar</button>
+      </div>
+      <div id="conn-list">
+        <h4>Conexiones</h4>
+        <div id="conn-list-items"></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Context Menu -->
+<div id="ctx-menu">
+  <div onclick="ctxAction('props')">&#9998; Propiedades</div>
+  <div onclick="ctxAction('connect')">&#128279; Conectar desde aquí</div>
+  <hr>
+  <div class="ctx-danger" onclick="ctxAction('delete')">&#10005; Eliminar</div>
+</div>
+
+<!-- Connection Modal -->
+<div id="modal-overlay">
+  <div id="modal-box">
+    <h3>Nueva Conexión</h3>
+    <div class="form-row">
+      <label>Tipo de conexión</label>
+      <select id="modal-tipo" onchange="updateModalColor()">
+        <option value="ethernet">Ethernet</option>
+        <option value="fibra">Fibra óptica</option>
+        <option value="wifi">WiFi</option>
+        <option value="serial">Serial</option>
+        <option value="consola">Consola</option>
+      </select>
+    </div>
+    <div class="form-row">
+      <label>Etiqueta (opcional)</label>
+      <input type="text" id="modal-label" placeholder="Ej: LAN principal">
+    </div>
+    <div class="form-row">
+      <label>Color <span class="color-preview" id="modal-color-preview"></span></label>
+      <input type="color" id="modal-color" value="#4488ff" oninput="document.getElementById('modal-color-preview').style.background=this.value">
+    </div>
+    <div class="btn-row">
+      <button onclick="confirmConnection()">Crear conexión</button>
+      <button onclick="closeModal()" style="background:#0f3460;">Cancelar</button>
+    </div>
+  </div>
+</div>
+
+<!-- Drag ghost -->
+<div id="drop-ghost"><img id="drop-ghost-img" src=""></div>
+
+<script>
+// ═══════════════════════════════════════════════════════════
+// PLANO DATA
+// ═══════════════════════════════════════════════════════════
+const CELLS = [{"c": 6, "r": 1, "b": {}, "v": "P8"}, {"c": 27, "r": 1, "b": {}, "v": "P9"}, {"c": 49, "r": 1, "b": {}, "v": "P10"}, {"c": 70, "r": 1, "b": {}, "v": "P11"}, {"c": 91, "r": 1, "b": {}, "v": "P12"}, {"c": 113, "r": 1, "b": {}, "v": "P13"}, {"c": 134, "r": 1, "b": {}, "v": "P14"}, {"c": 2, "r": 2, "b": {"left": {"green": false, "thick": true}, "top": {"green": false, "thick": true}}, "v": null}, {"c": 3, "r": 2, "b": {"top": {"green": false, "thick": true}}, "v": null}, {"c": 4, "r": 2, "b": {"top": {"green": false, "thick": true}}, "v": null}, {"c": 5, "r": 2, "b": {"top": {"green": false, "thick": true}}, "v": null}, {"c": 6, "r": 2, "b": {"top": {"green": true, "thick": false}}, "v": null}, {"c": 7, "r": 2, "b": {"top": {"green": false, "thick": true}}, "v": null}, {"c": 8, "r": 2, "b": {"top": {"green": false, "thick": true}}, "v": null}, {"c": 9, "r": 2, "b": {"top": {"green": false, "thick": true}}, "v": null}, {"c": 10, "r": 2, "b": {"top": {"green": false, "thick": true}}, "v": null}, {"c": 11, "r": 2, "b": {"top": {"green": false, "thick": true}}, "v": null}, {"c": 12, "r": 2, "b": {"top": {"green": false, "thick": true}}, "v": null}, {"c": 13, "r": 2, "b": {"top": {"green": false, "thick": true}}, "v": null}, {"c": 14, "r": 2, "b": {"top": {"green": false, "thick": true}}, "v": null}, {"c": 15, "r": 2, "b": {"top": {"green": false, "thick": true}}, "v": null}, {"c": 16, "r": 2, "b": {"top": {"green": false, "thick": true}}, "v": null}, {"c": 17, "r": 2, "b": {"top": {"green": false, "thick": true}}, "v": null}, {"c": 18, "r": 2, "b": {"top": {"green": false, "thick": true}}, "v": null}, {"c": 19, "r": 2, "b": {"top": {"green": false, "thick": true}}, "v": null}, {"c": 20, "r": 2, "b": {"top": {"green": false, "thick": true}}, "v": null}, {"c": 21, "r": 2, "b": {"top": {"green": false, "thick": true}}, "v": null}, {"c": 22, "r": 2, "b": {"top": {"green": false, "thick": true}}, "v": null}, {"c": 23, "r": 2, "b": {"top": {"green": false, "thick": true}}, "v": null}, {"c": 24, "r": 2, "b": {"top": {"green": false, "thick": true}}, "v": null}, {"c": 25, "r": 2, "b": {"top": {"green": false, "thick": true}}, "v": null}, {"c": 26, "r": 2, "b": {"top": {"green": false, "thick": true}}, "v": null}, {"c": 27, "r": 2, "b": {"top": {"green": true, "thick": false}}, "v": null}, {"c": 28, "r": 2, "b": {"top": {"green": false, "thick": true}}, "v": null}, {"c": 29, "r": 2, "b": {"top": {"green": false, "thick": true}}, "v": null}, {"c": 30, "r": 2, "b": {"top": {"green": false, "thick": true}}, "v": null}, {"c": 31, "r": 2, "b": {"top": {"green": false, "thick": true}}, "v": null}, {"c": 32, "r": 2, "b": {"top": {"green": false, "thick": true}}, "v": null}, {"c": 33, "r": 2, "b": {"top": {"green": false, "thick": true}}, "v": null}, {"c": 34, "r": 2, "b": {"top": {"green": false, "thick": true}}, "v": null}, {"c": 35, "r": 2, "b": {"top": {"green": false, "thick": true}}, "v": null}, {"c": 36, "r": 2, "b": {"top": {"green": false, "thick": true}}, "v": null}, {"c": 37, "r": 2, "b": {"top": {"green": false, "thick": true}}, "v": null}, {"c": 38, "r": 2, "b": {"top": {"green": false, "thick": true}}, "v": null}, {"c": 39, "r": 2, "b": {"top": {"green": false, "thick": true}}, "v": null}, {"c": 40, "r": 2, "b": {"top": {"green": false, "thick": true}}, "v": null}, {"c": 41, "r": 2, "b": {"top": {"green": false, "thick": true}}, "v": null}, {"c": 42, "r": 2, "b": {"top": {"green": false, "thick": true}}, "v": null}, {"c": 43, "r": 2, "b": {"top": {"green": false, "thick": true}}, "v": null}, {"c": 44, "r": 2, "b": {"top": {"green": false, "thick": true}}, "v": null}, {"c": 45, "r": 2, "b": {"top": {"green": false, "thick": true}}, "v": null}, {"c": 46, "r": 2, "b": {"top": {"green": false, "thick": true}}, "v": null}, {"c": 47, "r": 2, "b": {"top": {"green": false, "thick": true}}, "v": null}, {"c": 48, "r": 2, "b": {"top": {"green": false, "thick": true}}, "v": null}, {"c": 49, "r": 2, "b": {"top": {"green": true, "thick": false}}, "v": null}, {"c": 50, "r": 2, "b": {"top": {"green": false, "thick": true}}, "v": null}, {"c": 51, "r": 2, "b": {"top": {"green": false, "thick": true}}, "v": null}, {"c": 52, "r": 2, "b": {"top": {"green": false, "thick": true}}, "v": null}, {"c": 53, "r": 2, "b": {"top": {"green": false, "thick": true}}, "v": null}, {"c": 54, "r": 2, "b": {"top": {"green": false, "thick": true}}, "v": null}, {"c": 55, "r": 2, "b": {"top": {"green": false, "thick": true}}, "v": null}, {"c": 56, "r": 2, "b": {"top": {"green": false, "thick": true}}, "v": null}, {"c": 57, "r": 2, "b": {"top": {"green": false, "thick": true}}, "v": null}, {"c": 58, "r": 2, "b": {"top": {"green": false, "thick": true}}, "v": null}, {"c": 59, "r": 2, "b": {"top": {"green": false, "thick": true}}, "v": null}, {"c": 60, "r": 2, "b": {"top": {"green": false, "thick": true}}, "v": null}, {"c": 61, "r": 2, "b": {"top": {"green": false, "thick": true}}, "v": null}, {"c": 62, "r": 2, "b": {"top": {"green": false, "thick": true}}, "v": null}, {"c": 63, "r": 2, "b": {"top": {"green": false, "thick": true}}, "v": null}, {"c": 64, "r": 2, "b": {"top": {"green": false, "thick": true}}, "v": null}, {"c": 65, "r": 2, "b": {"top": {"green": false, "thick": true}}, "v": null}, {"c": 66, "r": 2, "b": {"top": {"green": false, "thick": true}}, "v": null}, {"c": 67, "r": 2, "b": {"top": {"green": false, "thick": true}}, "v": null}, {"c": 68, "r": 2, "b": {"top": {"green": false, "thick": true}}, "v": null}, {"c": 69, "r": 2, "b": {"top": {"green": false, "thick": true}}, "v": null}, {"c": 70, "r": 2, "b": {"top": {"green": true, "thick": false}}, "v": null}, {"c": 71, "r": 2, "b": {"top": {"green": false, "thick": true}}, "v": null}, {"c": 72, "r": 2, "b": {"top": {"green": false, "thick": true}}, "v": null}, {"c": 73, "r": 2, "b": {"top": {"green": false, "thick": true}}, "v": null}, {"c": 74, "r": 2, "b": {"top": {"green": false, "thick": true}}, "v": null}, {"c": 75, "r": 2, "b": {"top": {"green": false, "thick": true}}, "v": null}, {"c": 76, "r": 2, "b": {"top": {"green": false, "thick": true}}, "v": null}, {"c": 77, "r": 2, "b": {"top": {"green": false, "thick": true}}, "v": null}, {"c": 78, "r": 2, "b": {"top": {"green": false, "thick": true}}, "v": null}, {"c": 79, "r": 2, "b": {"top": {"green": false, "thick": true}}, "v": null}, {"c": 80, "r": 2, "b": {"top": {"green": false, "thick": true}}, "v": null}, {"c": 81, "r": 2, "b": {"top": {"green": false, "thick": true}}, "v": null}, {"c": 82, "r": 2, "b": {"top": {"green": false, "thick": true}}, "v": null}, {"c": 83, "r": 2, "b": {"top": {"green": false, "thick": true}}, "v": null}, {"c": 84, "r": 2, "b": {"top": {"green": false, "thick": true}}, "v": null}, {"c": 85, "r": 2, "b": {"top": {"green": false, "thick": true}}, "v": null}, {"c": 86, "r": 2, "b": {"top": {"green": false, "thick": true}}, "v": null}, {"c": 87, "r": 2, "b": {"top": {"green": false, "thick": true}}, "v": null}, {"c": 88, "r": 2, "b": {"top": {"green": false, "thick": true}}, "v": null}, {"c": 89, "r": 2, "b": {"top": {"green": false, "thick": true}}, "v": null}, {"c": 90, "r": 2, "b": {"top": {"green": false, "thick": true}}, "v": null}, {"c": 91, "r": 2, "b": {"top": {"green": true, "thick": false}}, "v": null}, {"c": 92, "r": 2, "b": {"top": {"green": false, "thick": true}}, "v": null}, {"c": 93, "r": 2, "b": {"top": {"green": false, "thick": true}}, "v": null}, {"c": 94, "r": 2, "b": {"top": {"green": false, "thick": true}}, "v": null}, {"c": 95, "r": 2, "b": {"top": {"green": false, "thick": true}}, "v": null}, {"c": 96, "r": 2, "b": {"top": {"green": false, "thick": true}}, "v": null}, {"c": 97, "r": 2, "b": {"top": {"green": false, "thick": true}}, "v": null}, {"c": 98, "r": 2, "b": {"top": {"green": false, "thick": true}}, "v": null}, {"c": 99, "r": 2, "b": {"top": {"green": false, "thick": true}}, "v": null}, {"c": 100, "r": 2, "b": {"top": {"green": false, "thick": true}}, "v": null}, {"c": 101, "r": 2, "b": {"top": {"green": false, "thick": true}}, "v": null}, {"c": 102, "r": 2, "b": {"top": {"green": false, "thick": true}}, "v": null}, {"c": 103, "r": 2, "b": {"top": {"green": false, "thick": true}}, "v": null}, {"c": 104, "r": 2, "b": {"top": {"green": false, "thick": true}}, "v": null}, {"c": 105, "r": 2, "b": {"top": {"green": false, "thick": true}}, "v": null}, {"c": 106, "r": 2, "b": {"top": {"green": false, "thick": true}}, "v": null}, {"c": 107, "r": 2, "b": {"top": {"green": false, "thick": true}}, "v": null}, {"c": 108, "r": 2, "b": {"top": {"green": false, "thick": true}}, "v": null}, {"c": 109, "r": 2, "b": {"top": {"green": false, "thick": true}}, "v": null}, {"c": 110, "r": 2, "b": {"top": {"green": false, "thick": true}}, "v": null}, {"c": 111, "r": 2, "b": {"top": {"green": false, "thick": true}}, "v": null}, {"c": 112, "r": 2, "b": {"top": {"green": false, "thick": true}}, "v": null}, {"c": 113, "r": 2, "b": {"top": {"green": true, "thick": false}}, "v": null}, {"c": 114, "r": 2, "b": {"top": {"green": false, "thick": true}}, "v": null}, {"c": 115, "r": 2, "b": {"top": {"green": false, "thick": true}}, "v": null}, {"c": 116, "r": 2, "b": {"top": {"green": false, "thick": true}}, "v": null}, {"c": 117, "r": 2, "b": {"top": {"green": false, "thick": true}}, "v": null}, {"c": 118, "r": 2, "b": {"top": {"green": false, "thick": true}}, "v": null}, {"c": 119, "r": 2, "b": {"top": {"green": false, "thick": true}}, "v": null}, {"c": 120, "r": 2, "b": {"top": {"green": false, "thick": true}}, "v": null}, {"c": 121, "r": 2, "b": {"top": {"green": false, "thick": true}}, "v": null}, {"c": 122, "r": 2, "b": {"top": {"green": false, "thick": true}}, "v": null}, {"c": 123, "r": 2, "b": {"top": {"green": false, "thick": true}}, "v": null}, {"c": 124, "r": 2, "b": {"top": {"green": false, "thick": true}}, "v": null}, {"c": 125, "r": 2, "b": {"top": {"green": false, "thick": true}}, "v": null}, {"c": 126, "r": 2, "b": {"top": {"green": false, "thick": true}}, "v": null}, {"c": 127, "r": 2, "b": {"top": {"green": false, "thick": true}}, "v": null}, {"c": 128, "r": 2, "b": {"top": {"green": false, "thick": true}}, "v": null}, {"c": 129, "r": 2, "b": {"top": {"green": false, "thick": true}}, "v": null}, {"c": 130, "r": 2, "b": {"top": {"green": false, "thick": true}}, "v": null}, {"c": 131, "r": 2, "b": {"top": {"green": false, "thick": true}}, "v": null}, {"c": 132, "r": 2, "b": {"top": {"green": false, "thick": true}}, "v": null}, {"c": 133, "r": 2, "b": {"top": {"green": false, "thick": true}}, "v": null}, {"c": 134, "r": 2, "b": {"top": {"green": true, "thick": false}}, "v": null}, {"c": 135, "r": 2, "b": {"top": {"green": false, "thick": true}}, "v": null}, {"c": 136, "r": 2, "b": {"top": {"green": false, "thick": true}}, "v": null}, {"c": 137, "r": 2, "b": {"top": {"green": false, "thick": true}}, "v": null}, {"c": 138, "r": 2, "b": {"left": {"green": false, "thick": true}, "top": {"green": false, "thick": true}}, "v": null}, {"c": 139, "r": 2, "b": {"top": {"green": false, "thick": true}}, "v": null}, {"c": 140, "r": 2, "b": {"top": {"green": false, "thick": true}}, "v": null}, {"c": 141, "r": 2, "b": {"top": {"green": false, "thick": true}}, "v": null}, {"c": 142, "r": 2, "b": {"top": {"green": false, "thick": true}}, "v": null}, {"c": 143, "r": 2, "b": {"top": {"green": false, "thick": true}}, "v": null}, {"c": 144, "r": 2, "b": {"top": {"green": false, "thick": true}}, "v": null}, {"c": 145, "r": 2, "b": {"right": {"green": false, "thick": true}, "top": {"green": false, "thick": true}}, "v": null}, {"c": 2, "r": 3, "b": {"left": {"green": false, "thick": true}}, "v": null}, {"c": 138, "r": 3, "b": {"left": {"green": false, "thick": true}}, "v": null}, {"c": 145, "r": 3, "b": {"right": {"green": false, "thick": true}}, "v": null}, {"c": 2, "r": 4, "b": {"left": {"green": false, "thick": true}}, "v": null}, {"c": 138, "r": 4, "b": {"left": {"green": false, "thick": true}}, "v": null}, {"c": 145, "r": 4, "b": {"right": {"green": false, "thick": true}}, "v": null}, {"c": 2, "r": 5, "b": {"left": {"green": false, "thick": true}}, "v": null}, {"c": 138, "r": 5, "b": {"left": {"green": false, "thick": true}}, "v": null}, {"c": 145, "r": 5, "b": {"right": {"green": false, "thick": true}}, "v": null}, {"c": 2, "r": 6, "b": {"left": {"green": false, "thick": true}}, "v": null}, {"c": 138, "r": 6, "b": {"left": {"green": false, "thick": true}}, "v": null}, {"c": 145, "r": 6, "b": {"right": {"green": false, "thick": true}}, "v": null}, {"c": 2, "r": 7, "b": {"left": {"green": false, "thick": true}}, "v": null}, {"c": 138, "r": 7, "b": {"left": {"green": false, "thick": true}}, "v": null}, {"c": 145, "r": 7, "b": {"right": {"green": false, "thick": true}}, "v": null}, {"c": 2, "r": 8, "b": {"left": {"green": false, "thick": true}}, "v": null}, {"c": 138, "r": 8, "b": {"left": {"green": false, "thick": true}}, "v": null}, {"c": 145, "r": 8, "b": {"right": {"green": false, "thick": true}}, "v": null}, {"c": 2, "r": 9, "b": {"left": {"green": false, "thick": true}}, "v": null}, {"c": 138, "r": 9, "b": {"left": {"green": false, "thick": true}}, "v": null}, {"c": 145, "r": 9, "b": {"right": {"green": false, "thick": true}}, "v": null}, {"c": 2, "r": 10, "b": {"left": {"green": false, "thick": true}}, "v": null}, {"c": 138, "r": 10, "b": {"left": {"green": false, "thick": true}}, "v": null}, {"c": 145, "r": 10, "b": {"right": {"green": false, "thick": true}}, "v": null}, {"c": 2, "r": 11, "b": {"left": {"green": false, "thick": true}}, "v": null}, {"c": 138, "r": 11, "b": {"left": {"green": false, "thick": true}}, "v": null}, {"c": 145, "r": 11, "b": {"right": {"green": false, "thick": true}}, "v": null}, {"c": 2, "r": 12, "b": {"left": {"green": false, "thick": true}}, "v": null}, {"c": 138, "r": 12, "b": {"left": {"green": false, "thick": true}}, "v": null}, {"c": 145, "r": 12, "b": {"right": {"green": false, "thick": true}}, "v": null}, {"c": 2, "r": 13, "b": {"left": {"green": false, "thick": true}}, "v": null}, {"c": 138, "r": 13, "b": {"left": {"green": false, "thick": true}}, "v": null}, {"c": 145, "r": 13, "b": {"right": {"green": false, "thick": true}}, "v": null}, {"c": 2, "r": 14, "b": {"left": {"green": false, "thick": true}}, "v": null}, {"c": 138, "r": 14, "b": {"left": {"green": false, "thick": true}, "bottom": {"green": false, "thick": true}}, "v": null}, {"c": 139, "r": 14, "b": {"bottom": {"green": false, "thick": true}}, "v": null}, {"c": 140, "r": 14, "b": {"bottom": {"green": false, "thick": true}}, "v": null}, {"c": 141, "r": 14, "b": {"bottom": {"green": false, "thick": true}}, "v": null}, {"c": 142, "r": 14, "b": {"bottom": {"green": false, "thick": true}}, "v": null}, {"c": 143, "r": 14, "b": {"bottom": {"green": false, "thick": true}}, "v": null}, {"c": 144, "r": 14, "b": {"bottom": {"green": false, "thick": true}}, "v": null}, {"c": 145, "r": 14, "b": {"right": {"green": false, "thick": true}, "bottom": {"green": false, "thick": true}}, "v": null}, {"c": 2, "r": 15, "b": {"left": {"green": false, "thick": true}}, "v": null}, {"c": 145, "r": 15, "b": {"right": {"green": false, "thick": true}}, "v": null}, {"c": 2, "r": 16, "b": {"left": {"green": false, "thick": true}}, "v": null}, {"c": 145, "r": 16, "b": {"right": {"green": false, "thick": true}}, "v": null}, {"c": 2, "r": 17, "b": {"left": {"green": false, "thick": true}}, "v": null}, {"c": 145, "r": 17, "b": {"right": {"green": false, "thick": true}}, "v": null}, {"c": 2, "r": 18, "b": {"left": {"green": false, "thick": true}}, "v": null}, {"c": 145, "r": 18, "b": {"right": {"green": false, "thick": true}}, "v": null}, {"c": 2, "r": 19, "b": {"left": {"green": false, "thick": true}}, "v": null}, {"c": 145, "r": 19, "b": {"right": {"green": false, "thick": true}}, "v": null}, {"c": 2, "r": 20, "b": {"left": {"green": false, "thick": true}}, "v": null}, {"c": 145, "r": 20, "b": {"right": {"green": false, "thick": true}}, "v": null}, {"c": 2, "r": 21, "b": {"left": {"green": false, "thick": true}}, "v": null}, {"c": 145, "r": 21, "b": {"right": {"green": false, "thick": true}}, "v": null}, {"c": 2, "r": 22, "b": {"left": {"green": false, "thick": true}}, "v": null}, {"c": 142, "r": 22, "b": {"left": {"green": false, "thick": true}, "top": {"green": false, "thick": true}}, "v": null}, {"c": 143, "r": 22, "b": {"top": {"green": false, "thick": true}}, "v": null}, {"c": 144, "r": 22, "b": {"top": {"green": false, "thick": true}}, "v": null}, {"c": 145, "r": 22, "b": {"right": {"green": false, "thick": true}, "top": {"green": false, "thick": true}}, "v": null}, {"c": 2, "r": 23, "b": {"left": {"green": false, "thick": true}}, "v": null}, {"c": 142, "r": 23, "b": {"left": {"green": false, "thick": true}}, "v": null}, {"c": 145, "r": 23, "b": {"right": {"green": false, "thick": true}}, "v": null}, {"c": 2, "r": 24, "b": {"left": {"green": false, "thick": true}}, "v": null}, {"c": 142, "r": 24, "b": {"left": {"green": false, "thick": true}, "top": {"green": false, "thick": true}}, "v": null}, {"c": 143, "r": 24, "b": {"top": {"green": false, "thick": true}}, "v": null}, {"c": 144, "r": 24, "b": {"top": {"green": false, "thick": true}}, "v": null}, {"c": 145, "r": 24, "b": {"right": {"green": false, "thick": true}, "top": {"green": false, "thick": true}}, "v": null}, {"c": 2, "r": 25, "b": {"left": {"green": false, "thick": true}}, "v": null}, {"c": 142, "r": 25, "b": {"left": {"green": false, "thick": true}}, "v": null}, {"c": 145, "r": 25, "b": {"right": {"green": false, "thick": true}}, "v": null}, {"c": 2, "r": 26, "b": {"left": {"green": false, "thick": true}}, "v": null}, {"c": 142, "r": 26, "b": {"left": {"green": false, "thick": true}}, "v": null}, {"c": 145, "r": 26, "b": {"right": {"green": false, "thick": true}}, "v": null}, {"c": 2, "r": 27, "b": {"left": {"green": false, "thick": true}}, "v": null}, {"c": 142, "r": 27, "b": {"left": {"green": false, "thick": true}, "bottom": {"green": false, "thick": true}}, "v": null}, {"c": 143, "r": 27, "b": {"bottom": {"green": false, "thick": true}}, "v": null}, {"c": 144, "r": 27, "b": {"bottom": {"green": false, "thick": true}}, "v": null}, {"c": 145, "r": 27, "b": {"right": {"green": false, "thick": true}, "bottom": {"green": false, "thick": true}}, "v": null}, {"c": 2, "r": 28, "b": {"left": {"green": false, "thick": true}}, "v": null}, {"c": 142, "r": 28, "b": {"left": {"green": false, "thick": true}, "top": {"green": false, "thick": true}}, "v": null}, {"c": 143, "r": 28, "b": {"top": {"green": false, "thick": true}}, "v": null}, {"c": 144, "r": 28, "b": {"top": {"green": false, "thick": true}}, "v": null}, {"c": 145, "r": 28, "b": {"right": {"green": false, "thick": true}, "top": {"green": false, "thick": true}}, "v": null}, {"c": 2, "r": 29, "b": {"left": {"green": false, "thick": true}}, "v": null}, {"c": 142, "r": 29, "b": {"left": {"green": false, "thick": true}}, "v": null}, {"c": 145, "r": 29, "b": {"right": {"green": false, "thick": true}}, "v": null}, {"c": 2, "r": 30, "b": {"left": {"green": false, "thick": true}}, "v": null}, {"c": 142, "r": 30, "b": {"left": {"green": false, "thick": true}}, "v": null}, {"c": 145, "r": 30, "b": {"right": {"green": false, "thick": true}}, "v": null}, {"c": 2, "r": 31, "b": {"left": {"green": false, "thick": true}}, "v": null}, {"c": 142, "r": 31, "b": {"left": {"green": false, "thick": true}}, "v": null}, {"c": 145, "r": 31, "b": {"right": {"green": false, "thick": true}}, "v": null}, {"c": 2, "r": 32, "b": {"left": {"green": false, "thick": true}}, "v": null}, {"c": 142, "r": 32, "b": {"left": {"green": false, "thick": true}}, "v": null}, {"c": 145, "r": 32, "b": {"right": {"green": false, "thick": true}}, "v": null}, {"c": 2, "r": 33, "b": {"left": {"green": false, "thick": true}}, "v": null}, {"c": 142, "r": 33, "b": {"left": {"green": false, "thick": true}, "bottom": {"green": false, "thick": true}}, "v": null}, {"c": 143, "r": 33, "b": {"bottom": {"green": false, "thick": true}}, "v": null}, {"c": 144, "r": 33, "b": {"bottom": {"green": false, "thick": true}}, "v": null}, {"c": 145, "r": 33, "b": {"right": {"green": false, "thick": true}, "bottom": {"green": false, "thick": true}}, "v": null}, {"c": 2, "r": 34, "b": {"left": {"green": false, "thick": true}}, "v": null}, {"c": 142, "r": 34, "b": {"left": {"green": false, "thick": true}, "top": {"green": false, "thick": true}}, "v": null}, {"c": 143, "r": 34, "b": {"top": {"green": false, "thick": true}}, "v": null}, {"c": 144, "r": 34, "b": {"top": {"green": false, "thick": true}}, "v": null}, {"c": 145, "r": 34, "b": {"right": {"green": false, "thick": true}, "top": {"green": false, "thick": true}}, "v": null}, {"c": 2, "r": 35, "b": {"left": {"green": false, "thick": true}}, "v": null}, {"c": 142, "r": 35, "b": {"left": {"green": false, "thick": true}}, "v": null}, {"c": 145, "r": 35, "b": {"right": {"green": false, "thick": true}}, "v": null}, {"c": 2, "r": 36, "b": {"left": {"green": false, "thick": true}}, "v": null}, {"c": 142, "r": 36, "b": {"left": {"green": false, "thick": true}, "bottom": {"green": false, "thick": true}}, "v": null}, {"c": 143, "r": 36, "b": {"bottom": {"green": false, "thick": true}}, "v": null}, {"c": 144, "r": 36, "b": {"bottom": {"green": false, "thick": true}}, "v": null}, {"c": 145, "r": 36, "b": {"right": {"green": false, "thick": true}, "bottom": {"green": false, "thick": true}}, "v": null}, {"c": 2, "r": 37, "b": {"left": {"green": false, "thick": true}}, "v": null}, {"c": 142, "r": 37, "b": {"left": {"green": false, "thick": true}, "top": {"green": false, "thick": true}}, "v": null}, {"c": 143, "r": 37, "b": {"top": {"green": false, "thick": true}}, "v": null}, {"c": 144, "r": 37, "b": {"top": {"green": false, "thick": true}}, "v": null}, {"c": 145, "r": 37, "b": {"right": {"green": false, "thick": true}, "top": {"green": false, "thick": true}}, "v": null}, {"c": 2, "r": 38, "b": {"left": {"green": false, "thick": true}}, "v": null}, {"c": 142, "r": 38, "b": {"left": {"green": false, "thick": true}}, "v": null}, {"c": 145, "r": 38, "b": {"right": {"green": false, "thick": true}}, "v": null}, {"c": 2, "r": 39, "b": {"left": {"green": false, "thick": true}}, "v": null}, {"c": 142, "r": 39, "b": {"left": {"green": false, "thick": true}, "bottom": {"green": false, "thick": true}}, "v": null}, {"c": 143, "r": 39, "b": {"bottom": {"green": false, "thick": true}}, "v": null}, {"c": 144, "r": 39, "b": {"bottom": {"green": false, "thick": true}}, "v": null}, {"c": 145, "r": 39, "b": {"right": {"green": false, "thick": true}, "bottom": {"green": false, "thick": true}}, "v": null}, {"c": 2, "r": 40, "b": {"left": {"green": false, "thick": true}}, "v": null}, {"c": 142, "r": 40, "b": {"left": {"green": false, "thick": true}}, "v": null}, {"c": 145, "r": 40, "b": {"right": {"green": false, "thick": true}}, "v": null}, {"c": 2, "r": 41, "b": {"left": {"green": false, "thick": true}}, "v": null}, {"c": 142, "r": 41, "b": {"left": {"green": false, "thick": true}}, "v": null}, {"c": 145, "r": 41, "b": {"right": {"green": false, "thick": true}}, "v": null}, {"c": 2, "r": 42, "b": {"left": {"green": false, "thick": true}}, "v": null}, {"c": 142, "r": 42, "b": {"left": {"green": false, "thick": true}}, "v": null}, {"c": 145, "r": 42, "b": {"right": {"green": false, "thick": true}}, "v": null}, {"c": 2, "r": 43, "b": {"left": {"green": false, "thick": true}}, "v": null}, {"c": 49, "r": 43, "b": {"left": {"green": false, "thick": true}, "top": {"green": false, "thick": true}}, "v": null}, {"c": 50, "r": 43, "b": {"top": {"green": false, "thick": true}}, "v": null}, {"c": 51, "r": 43, "b": {"top": {"green": false, "thick": true}}, "v": null}, {"c": 52, "r": 43, "b": {"top": {"green": false, "thick": true}}, "v": null}, {"c": 53, "r": 43, "b": {"top": {"green": false, "thick": true}}, "v": null}, {"c": 54, "r": 43, "b": {"right": {"green": false, "thick": true}, "top": {"green": false, "thick": true}}, "v": null}, {"c": 93, "r": 43, "b": {"left": {"green": false, "thick": true}, "top": {"green": false, "thick": true}}, "v": null}, {"c": 94, "r": 43, "b": {"top": {"green": false, "thick": true}}, "v": null}, {"c": 95, "r": 43, "b": {"right": {"green": false, "thick": true}, "top": {"green": false, "thick": true}}, "v": null}, {"c": 142, "r": 43, "b": {"left": {"green": false, "thick": true}}, "v": null}, {"c": 145, "r": 43, "b": {"right": {"green": false, "thick": true}}, "v": null}, {"c": 2, "r": 44, "b": {"left": {"green": false, "thick": true}}, "v": null}, {"c": 49, "r": 44, "b": {"left": {"green": false, "thick": true}}, "v": null}, {"c": 54, "r": 44, "b": {"right": {"green": false, "thick": true}}, "v": null}, {"c": 93, "r": 44, "b": {"left": {"green": false, "thick": true}}, "v": null}, {"c": 95, "r": 44, "b": {"right": {"green": false, "thick": true}}, "v": null}, {"c": 142, "r": 44, "b": {"left": {"green": false, "thick": true}}, "v": null}, {"c": 145, "r": 44, "b": {"right": {"green": false, "thick": true}}, "v": null}, {"c": 2, "r": 45, "b": {"left": {"green": false, "thick": true}}, "v": null}, {"c": 49, "r": 45, "b": {"left": {"green": false, "thick": true}, "bottom": {"green": false, "thick": true}}, "v": null}, {"c": 50, "r": 45, "b": {"bottom": {"green": false, "thick": true}}, "v": null}, {"c": 51, "r": 45, "b": {"bottom": {"green": false, "thick": true}}, "v": null}, {"c": 52, "r": 45, "b": {"bottom": {"green": false, "thick": true}}, "v": null}, {"c": 53, "r": 45, "b": {"bottom": {"green": false, "thick": true}}, "v": null}, {"c": 54, "r": 45, "b": {"right": {"green": false, "thick": true}, "bottom": {"green": false, "thick": true}}, "v": null}, {"c": 93, "r": 45, "b": {"left": {"green": false, "thick": true}}, "v": null}, {"c": 95, "r": 45, "b": {"right": {"green": false, "thick": true}}, "v": null}, {"c": 142, "r": 45, "b": {"left": {"green": false, "thick": true}}, "v": null}, {"c": 145, "r": 45, "b": {"right": {"green": false, "thick": true}}, "v": null}, {"c": 2, "r": 46, "b": {"left": {"green": false, "thick": true}, "top": {"green": false, "thick": true}}, "v": null}, {"c": 3, "r": 46, "b": {"right": {"green": false, "thick": true}, "top": {"green": false, "thick": true}}, "v": null}, {"c": 49, "r": 46, "b": {"left": {"green": false, "thick": true}, "top": {"green": false, "thick": true}}, "v": null}, {"c": 50, "r": 46, "b": {"top": {"green": false, "thick": true}}, "v": null}, {"c": 51, "r": 46, "b": {"top": {"green": false, "thick": true}}, "v": null}, {"c": 52, "r": 46, "b": {"right": {"green": false, "thick": true}, "top": {"green": false, "thick": true}}, "v": null}, {"c": 53, "r": 46, "b": {"top": {"green": false, "thick": true}}, "v": null}, {"c": 93, "r": 46, "b": {"left": {"green": false, "thick": true}, "bottom": {"green": false, "thick": true}}, "v": null}, {"c": 94, "r": 46, "b": {"bottom": {"green": false, "thick": true}}, "v": null}, {"c": 95, "r": 46, "b": {"right": {"green": false, "thick": true}, "bottom": {"green": false, "thick": true}}, "v": null}, {"c": 142, "r": 46, "b": {"left": {"green": false, "thick": true}}, "v": null}, {"c": 145, "r": 46, "b": {"right": {"green": false, "thick": true}}, "v": null}, {"c": 2, "r": 47, "b": {"left": {"green": false, "thick": true}}, "v": null}, {"c": 3, "r": 47, "b": {"right": {"green": false, "thick": true}}, "v": null}, {"c": 49, "r": 47, "b": {"left": {"green": false, "thick": true}}, "v": null}, {"c": 52, "r": 47, "b": {"right": {"green": false, "thick": true}}, "v": null}, {"c": 93, "r": 47, "b": {"left": {"green": false, "thick": true}, "top": {"green": false, "thick": true}}, "v": null}, {"c": 94, "r": 47, "b": {"top": {"green": false, "thick": true}}, "v": null}, {"c": 95, "r": 47, "b": {"top": {"green": false, "thick": true}}, "v": null}, {"c": 96, "r": 47, "b": {"right": {"green": false, "thick": true}, "top": {"green": false, "thick": true}}, "v": null}, {"c": 142, "r": 47, "b": {"left": {"green": false, "thick": true}}, "v": null}, {"c": 145, "r": 47, "b": {"right": {"green": false, "thick": true}}, "v": null}, {"c": 2, "r": 48, "b": {"left": {"green": false, "thick": true}}, "v": null}, {"c": 3, "r": 48, "b": {"right": {"green": false, "thick": true}}, "v": null}, {"c": 49, "r": 48, "b": {"left": {"green": false, "thick": true}}, "v": null}, {"c": 52, "r": 48, "b": {"right": {"green": false, "thick": true}}, "v": null}, {"c": 93, "r": 48, "b": {"left": {"green": false, "thick": true}}, "v": null}, {"c": 96, "r": 48, "b": {"right": {"green": false, "thick": true}}, "v": null}, {"c": 142, "r": 48, "b": {"left": {"green": false, "thick": true}}, "v": null}, {"c": 145, "r": 48, "b": {"right": {"green": false, "thick": true}}, "v": null}, {"c": 2, "r": 49, "b": {"left": {"green": false, "thick": true}}, "v": null}, {"c": 3, "r": 49, "b": {"right": {"green": false, "thick": true}}, "v": null}, {"c": 49, "r": 49, "b": {"left": {"green": false, "thick": true}}, "v": null}, {"c": 52, "r": 49, "b": {"right": {"green": false, "thick": true}}, "v": null}, {"c": 93, "r": 49, "b": {"left": {"green": false, "thick": true}}, "v": null}, {"c": 96, "r": 49, "b": {"right": {"green": false, "thick": true}}, "v": null}, {"c": 142, "r": 49, "b": {"left": {"green": false, "thick": true}}, "v": null}, {"c": 145, "r": 49, "b": {"right": {"green": false, "thick": true}}, "v": null}, {"c": 2, "r": 50, "b": {"left": {"green": false, "thick": true}, "bottom": {"green": false, "thick": true}}, "v": null}, {"c": 3, "r": 50, "b": {"right": {"green": false, "thick": true}, "bottom": {"green": false, "thick": true}}, "v": null}, {"c": 49, "r": 50, "b": {"left": {"green": false, "thick": true}}, "v": null}, {"c": 52, "r": 50, "b": {"right": {"green": false, "thick": true}}, "v": null}, {"c": 93, "r": 50, "b": {"left": {"green": false, "thick": true}}, "v": null}, {"c": 96, "r": 50, "b": {"right": {"green": false, "thick": true}}, "v": null}, {"c": 142, "r": 50, "b": {"left": {"green": false, "thick": true}}, "v": null}, {"c": 145, "r": 50, "b": {"right": {"green": false, "thick": true}}, "v": null}, {"c": 2, "r": 51, "b": {"left": {"green": false, "thick": true}, "bottom": {"green": false, "thick": true}}, "v": null}, {"c": 3, "r": 51, "b": {"bottom": {"green": false, "thick": true}}, "v": null}, {"c": 4, "r": 51, "b": {"bottom": {"green": false, "thick": true}}, "v": null}, {"c": 5, "r": 51, "b": {"bottom": {"green": true, "thick": false}}, "v": null}, {"c": 6, "r": 51, "b": {"bottom": {"green": true, "thick": false}}, "v": null}, {"c": 7, "r": 51, "b": {"bottom": {"green": true, "thick": false}}, "v": null}, {"c": 8, "r": 51, "b": {"bottom": {"green": true, "thick": false}}, "v": null}, {"c": 9, "r": 51, "b": {"bottom": {"green": false, "thick": true}}, "v": null}, {"c": 10, "r": 51, "b": {"bottom": {"green": false, "thick": true}}, "v": null}, {"c": 11, "r": 51, "b": {"bottom": {"green": false, "thick": true}}, "v": null}, {"c": 12, "r": 51, "b": {"bottom": {"green": false, "thick": true}}, "v": null}, {"c": 13, "r": 51, "b": {"bottom": {"green": false, "thick": true}}, "v": null}, {"c": 14, "r": 51, "b": {"bottom": {"green": false, "thick": true}}, "v": null}, {"c": 15, "r": 51, "b": {"bottom": {"green": false, "thick": true}}, "v": null}, {"c": 16, "r": 51, "b": {"bottom": {"green": false, "thick": true}}, "v": null}, {"c": 17, "r": 51, "b": {"bottom": {"green": false, "thick": true}}, "v": null}, {"c": 18, "r": 51, "b": {"bottom": {"green": false, "thick": true}}, "v": null}, {"c": 19, "r": 51, "b": {"bottom": {"green": false, "thick": true}}, "v": null}, {"c": 20, "r": 51, "b": {"bottom": {"green": false, "thick": true}}, "v": null}, {"c": 21, "r": 51, "b": {"bottom": {"green": true, "thick": false}}, "v": null}, {"c": 22, "r": 51, "b": {"bottom": {"green": true, "thick": false}}, "v": null}, {"c": 23, "r": 51, "b": {"bottom": {"green": false, "thick": true}}, "v": null}, {"c": 24, "r": 51, "b": {"bottom": {"green": false, "thick": true}}, "v": null}, {"c": 25, "r": 51, "b": {"bottom": {"green": false, "thick": true}}, "v": null}, {"c": 26, "r": 51, "b": {"bottom": {"green": false, "thick": true}}, "v": null}, {"c": 27, "r": 51, "b": {"bottom": {"green": false, "thick": true}}, "v": null}, {"c": 28, "r": 51, "b": {"bottom": {"green": true, "thick": false}}, "v": null}, {"c": 29, "r": 51, "b": {"bottom": {"green": true, "thick": false}}, "v": null}, {"c": 30, "r": 51, "b": {"bottom": {"green": false, "thick": true}}, "v": null}, {"c": 31, "r": 51, "b": {"bottom": {"green": false, "thick": true}}, "v": null}, {"c": 32, "r": 51, "b": {"bottom": {"green": false, "thick": true}}, "v": null}, {"c": 33, "r": 51, "b": {"bottom": {"green": false, "thick": true}}, "v": null}, {"c": 34, "r": 51, "b": {"bottom": {"green": false, "thick": true}}, "v": null}, {"c": 35, "r": 51, "b": {"bottom": {"green": true, "thick": false}}, "v": null}, {"c": 36, "r": 51, "b": {"bottom": {"green": true, "thick": false}}, "v": null}, {"c": 37, "r": 51, "b": {"bottom": {"green": false, "thick": true}}, "v": null}, {"c": 38, "r": 51, "b": {"bottom": {"green": false, "thick": true}}, "v": null}, {"c": 39, "r": 51, "b": {"bottom": {"green": false, "thick": true}}, "v": null}, {"c": 40, "r": 51, "b": {"bottom": {"green": false, "thick": true}}, "v": null}, {"c": 41, "r": 51, "b": {"bottom": {"green": false, "thick": true}}, "v": null}, {"c": 42, "r": 51, "b": {"bottom": {"green": true, "thick": false}}, "v": null}, {"c": 43, "r": 51, "b": {"bottom": {"green": true, "thick": false}}, "v": null}, {"c": 44, "r": 51, "b": {"bottom": {"green": false, "thick": true}}, "v": null}, {"c": 45, "r": 51, "b": {"bottom": {"green": false, "thick": true}}, "v": null}, {"c": 46, "r": 51, "b": {"bottom": {"green": false, "thick": true}}, "v": null}, {"c": 47, "r": 51, "b": {"bottom": {"green": false, "thick": true}}, "v": null}, {"c": 48, "r": 51, "b": {"bottom": {"green": false, "thick": true}}, "v": null}, {"c": 49, "r": 51, "b": {"left": {"green": false, "thick": true}, "bottom": {"green": false, "thick": true}}, "v": null}, {"c": 50, "r": 51, "b": {"bottom": {"green": false, "thick": true}}, "v": null}, {"c": 51, "r": 51, "b": {"bottom": {"green": false, "thick": true}}, "v": null}, {"c": 52, "r": 51, "b": {"right": {"green": false, "thick": true}, "bottom": {"green": false, "thick": true}}, "v": null}, {"c": 53, "r": 51, "b": {"bottom": {"green": false, "thick": true}}, "v": null}, {"c": 54, "r": 51, "b": {"bottom": {"green": false, "thick": true}}, "v": null}, {"c": 55, "r": 51, "b": {"bottom": {"green": false, "thick": true}}, "v": null}, {"c": 56, "r": 51, "b": {"bottom": {"green": true, "thick": false}}, "v": null}, {"c": 57, "r": 51, "b": {"bottom": {"green": true, "thick": false}}, "v": null}, {"c": 58, "r": 51, "b": {"bottom": {"green": false, "thick": true}}, "v": null}, {"c": 59, "r": 51, "b": {"bottom": {"green": false, "thick": true}}, "v": null}, {"c": 60, "r": 51, "b": {"bottom": {"green": false, "thick": true}}, "v": null}, {"c": 61, "r": 51, "b": {"bottom": {"green": false, "thick": true}}, "v": null}, {"c": 62, "r": 51, "b": {"bottom": {"green": false, "thick": true}}, "v": null}, {"c": 63, "r": 51, "b": {"bottom": {"green": true, "thick": false}}, "v": null}, {"c": 64, "r": 51, "b": {"bottom": {"green": true, "thick": false}}, "v": null}, {"c": 65, "r": 51, "b": {"bottom": {"green": false, "thick": true}}, "v": null}, {"c": 66, "r": 51, "b": {"bottom": {"green": false, "thick": true}}, "v": null}, {"c": 67, "r": 51, "b": {"bottom": {"green": false, "thick": true}}, "v": null}, {"c": 68, "r": 51, "b": {"bottom": {"green": false, "thick": true}}, "v": null}, {"c": 69, "r": 51, "b": {"bottom": {"green": false, "thick": true}}, "v": null}, {"c": 70, "r": 51, "b": {"bottom": {"green": true, "thick": false}}, "v": null}, {"c": 71, "r": 51, "b": {"bottom": {"green": true, "thick": false}}, "v": null}, {"c": 72, "r": 51, "b": {"bottom": {"green": false, "thick": true}}, "v": null}, {"c": 73, "r": 51, "b": {"bottom": {"green": false, "thick": true}}, "v": null}, {"c": 74, "r": 51, "b": {"bottom": {"green": false, "thick": true}}, "v": null}, {"c": 75, "r": 51, "b": {"bottom": {"green": false, "thick": true}}, "v": null}, {"c": 76, "r": 51, "b": {"bottom": {"green": false, "thick": true}}, "v": null}, {"c": 77, "r": 51, "b": {"bottom": {"green": true, "thick": false}}, "v": null}, {"c": 78, "r": 51, "b": {"bottom": {"green": true, "thick": false}}, "v": null}, {"c": 79, "r": 51, "b": {"bottom": {"green": false, "thick": true}}, "v": null}, {"c": 80, "r": 51, "b": {"bottom": {"green": false, "thick": true}}, "v": null}, {"c": 81, "r": 51, "b": {"bottom": {"green": false, "thick": true}}, "v": null}, {"c": 82, "r": 51, "b": {"bottom": {"green": false, "thick": true}}, "v": null}, {"c": 83, "r": 51, "b": {"bottom": {"green": false, "thick": true}}, "v": null}, {"c": 84, "r": 51, "b": {"bottom": {"green": true, "thick": false}}, "v": null}, {"c": 85, "r": 51, "b": {"bottom": {"green": true, "thick": false}}, "v": null}, {"c": 86, "r": 51, "b": {"bottom": {"green": false, "thick": true}}, "v": null}, {"c": 87, "r": 51, "b": {"bottom": {"green": false, "thick": true}}, "v": null}, {"c": 88, "r": 51, "b": {"bottom": {"green": false, "thick": true}}, "v": null}, {"c": 89, "r": 51, "b": {"bottom": {"green": false, "thick": true}}, "v": null}, {"c": 90, "r": 51, "b": {"bottom": {"green": false, "thick": true}}, "v": null}, {"c": 91, "r": 51, "b": {"bottom": {"green": true, "thick": false}}, "v": null}, {"c": 92, "r": 51, "b": {"bottom": {"green": true, "thick": false}}, "v": null}, {"c": 93, "r": 51, "b": {"left": {"green": false, "thick": true}, "bottom": {"green": false, "thick": true}}, "v": null}, {"c": 94, "r": 51, "b": {"bottom": {"green": false, "thick": true}}, "v": null}, {"c": 95, "r": 51, "b": {"bottom": {"green": false, "thick": true}}, "v": null}, {"c": 96, "r": 51, "b": {"right": {"green": false, "thick": true}, "bottom": {"green": false, "thick": true}}, "v": null}, {"c": 97, "r": 51, "b": {"bottom": {"green": false, "thick": true}}, "v": null}, {"c": 98, "r": 51, "b": {"bottom": {"green": true, "thick": false}}, "v": null}, {"c": 99, "r": 51, "b": {"bottom": {"green": true, "thick": false}}, "v": null}, {"c": 100, "r": 51, "b": {"bottom": {"green": false, "thick": true}}, "v": null}, {"c": 101, "r": 51, "b": {"bottom": {"green": false, "thick": true}}, "v": null}, {"c": 102, "r": 51, "b": {"bottom": {"green": false, "thick": true}}, "v": null}, {"c": 103, "r": 51, "b": {"bottom": {"green": false, "thick": true}}, "v": null}, {"c": 104, "r": 51, "b": {"bottom": {"green": false, "thick": true}}, "v": null}, {"c": 105, "r": 51, "b": {"bottom": {"green": true, "thick": false}}, "v": null}, {"c": 106, "r": 51, "b": {"bottom": {"green": true, "thick": false}}, "v": null}, {"c": 107, "r": 51, "b": {"bottom": {"green": false, "thick": true}}, "v": null}, {"c": 108, "r": 51, "b": {"bottom": {"green": false, "thick": true}}, "v": null}, {"c": 109, "r": 51, "b": {"bottom": {"green": false, "thick": true}}, "v": null}, {"c": 110, "r": 51, "b": {"bottom": {"green": false, "thick": true}}, "v": null}, {"c": 111, "r": 51, "b": {"bottom": {"green": false, "thick": true}}, "v": null}, {"c": 112, "r": 51, "b": {"bottom": {"green": true, "thick": false}}, "v": null}, {"c": 113, "r": 51, "b": {"bottom": {"green": true, "thick": false}}, "v": null}, {"c": 114, "r": 51, "b": {"bottom": {"green": false, "thick": true}}, "v": null}, {"c": 115, "r": 51, "b": {"bottom": {"green": false, "thick": true}}, "v": null}, {"c": 116, "r": 51, "b": {"bottom": {"green": false, "thick": true}}, "v": null}, {"c": 117, "r": 51, "b": {"bottom": {"green": false, "thick": true}}, "v": null}, {"c": 118, "r": 51, "b": {"bottom": {"green": false, "thick": true}}, "v": null}, {"c": 119, "r": 51, "b": {"bottom": {"green": true, "thick": false}}, "v": null}, {"c": 120, "r": 51, "b": {"bottom": {"green": true, "thick": false}}, "v": null}, {"c": 121, "r": 51, "b": {"bottom": {"green": false, "thick": true}}, "v": null}, {"c": 122, "r": 51, "b": {"bottom": {"green": false, "thick": true}}, "v": null}, {"c": 123, "r": 51, "b": {"bottom": {"green": false, "thick": true}}, "v": null}, {"c": 124, "r": 51, "b": {"bottom": {"green": false, "thick": true}}, "v": null}, {"c": 125, "r": 51, "b": {"bottom": {"green": true, "thick": false}}, "v": null}, {"c": 126, "r": 51, "b": {"bottom": {"green": true, "thick": false}}, "v": null}, {"c": 127, "r": 51, "b": {"bottom": {"green": false, "thick": true}}, "v": null}, {"c": 128, "r": 51, "b": {"bottom": {"green": true, "thick": false}}, "v": null}, {"c": 129, "r": 51, "b": {"bottom": {"green": true, "thick": false}}, "v": null}, {"c": 130, "r": 51, "b": {"bottom": {"green": false, "thick": true}}, "v": null}, {"c": 131, "r": 51, "b": {"bottom": {"green": false, "thick": true}}, "v": null}, {"c": 132, "r": 51, "b": {"bottom": {"green": true, "thick": false}}, "v": null}, {"c": 133, "r": 51, "b": {"bottom": {"green": true, "thick": false}}, "v": null}, {"c": 134, "r": 51, "b": {"bottom": {"green": false, "thick": true}}, "v": null}, {"c": 135, "r": 51, "b": {"bottom": {"green": true, "thick": false}}, "v": null}, {"c": 136, "r": 51, "b": {"bottom": {"green": true, "thick": false}}, "v": null}, {"c": 137, "r": 51, "b": {"bottom": {"green": false, "thick": true}}, "v": null}, {"c": 138, "r": 51, "b": {"bottom": {"green": false, "thick": true}}, "v": null}, {"c": 139, "r": 51, "b": {"bottom": {"green": false, "thick": true}}, "v": null}, {"c": 140, "r": 51, "b": {"bottom": {"green": false, "thick": true}}, "v": null}, {"c": 141, "r": 51, "b": {"bottom": {"green": true, "thick": false}}, "v": null}, {"c": 142, "r": 51, "b": {"left": {"green": false, "thick": true}, "bottom": {"green": true, "thick": false}}, "v": null}, {"c": 143, "r": 51, "b": {"bottom": {"green": false, "thick": true}}, "v": null}, {"c": 144, "r": 51, "b": {"bottom": {"green": false, "thick": true}}, "v": null}, {"c": 145, "r": 51, "b": {"right": {"green": false, "thick": true}, "bottom": {"green": false, "thick": true}}, "v": null}, {"c": 7, "r": 52, "b": {}, "v": "Rampa 1"}, {"c": 21, "r": 52, "b": {}, "v": "18"}, {"c": 28, "r": 52, "b": {}, "v": "17"}, {"c": 35, "r": 52, "b": {}, "v": "16"}, {"c": 42, "r": 52, "b": {}, "v": "15"}, {"c": 56, "r": 52, "b": {}, "v": "14"}, {"c": 63, "r": 52, "b": {}, "v": "13"}, {"c": 70, "r": 52, "b": {}, "v": "12"}, {"c": 77, "r": 52, "b": {}, "v": "11"}, {"c": 84, "r": 52, "b": {}, "v": "10"}, {"c": 91, "r": 52, "b": {}, "v": "9"}, {"c": 98, "r": 52, "b": {}, "v": "8"}, {"c": 105, "r": 52, "b": {}, "v": "7"}, {"c": 112, "r": 52, "b": {}, "v": "6"}, {"c": 119, "r": 52, "b": {}, "v": "5"}, {"c": 125, "r": 52, "b": {}, "v": "4"}, {"c": 128, "r": 52, "b": {}, "v": "3"}, {"c": 132, "r": 52, "b": {}, "v": "2"}, {"c": 135, "r": 52, "b": {}, "v": "1"}];
+
+const COL_MIN=2,COL_MAX=145,ROW_MIN=2,ROW_MAX=51;
+const COLS=COL_MAX-COL_MIN+1,ROWS=ROW_MAX-ROW_MIN+1;
+const CELL_REAL=1.26;
+let cellSize=12;
+const MT=32,MB=32,ML=12;
+
+// ═══════════════════════════════════════════════════════════
+// STATE
+// ═══════════════════════════════════════════════════════════
+let panX=0, panY=0;
+let isPanning=false, panStartX=0, panStartY=0, panStartScrollX=0, panStartScrollY=0;
+let elements = [];   // from API
+let connections = []; // from API
+let selectedElementId = null;
+let capas = [];
+let activeCapaId = null;
+let hiddenCapas = new Set();
+let selectedConnId = null;
+let connectMode = false;
+let connectOriginId = null;
+let pendingConn = null; // {origin_id, destino_id}
+let propsDirty = false;
+let dragIconData = null; // {icono_id, archivo, nombre}
+const CONN_COLORS = { ethernet:'#4488ff', fibra:'#ff8800', wifi:'#00cc88', serial:'#cc44ff', consola:'#ffcc00' };
+
+// ═══════════════════════════════════════════════════════════
+// CANVAS DRAW
+// ═══════════════════════════════════════════════════════════
+const canvas = document.getElementById('canvas');
+const ctx = canvas.getContext('2d');
+
+function cellX(c){ return ML+(c-COL_MIN)*cellSize; }
+function cellY(r){ return MT+(r-ROW_MIN)*cellSize; }
+function canvasW(){ return ML+COLS*cellSize+20; }
+function canvasH(){ return MT+ROWS*cellSize+MB+10; }
+
+function draw(){
+  const showGrid = document.getElementById('toggleGrid').checked;
+  const W = canvasW(), H = canvasH();
+  canvas.width = W; canvas.height = H;
+  ctx.fillStyle='#faf8f2'; ctx.fillRect(0,0,W,H);
+
+  if(showGrid){
+    ctx.strokeStyle='#d8d4cc'; ctx.lineWidth=0.5;
+    for(let c=0;c<=COLS;c++){ const x=cellX(COL_MIN+c); ctx.beginPath(); ctx.moveTo(x,MT); ctx.lineTo(x,MT+ROWS*cellSize); ctx.stroke(); }
+    for(let r=0;r<=ROWS;r++){ const y=cellY(ROW_MIN+r); ctx.beginPath(); ctx.moveTo(ML,y); ctx.lineTo(ML+COLS*cellSize,y); ctx.stroke(); }
+  }
+
+  for(const cell of CELLS){
+    const{c,r,b}=cell;
+    if(!b||c<COL_MIN||c>COL_MAX||r<ROW_MIN||r>ROW_MAX) continue;
+    const x=cellX(c), y=cellY(r), s=cellSize;
+    for(const[side,info] of Object.entries(b)){
+      if(!info) continue;
+      ctx.beginPath();
+      if(info.green){ ctx.strokeStyle='#00bb00'; ctx.lineWidth=Math.max(1.5,cellSize*0.2); }
+      else { ctx.strokeStyle='#1a1a1a'; ctx.lineWidth=Math.max(2,cellSize*0.28); }
+      if(side==='top')    { ctx.moveTo(x,y);   ctx.lineTo(x+s,y); }
+      else if(side==='bottom') { ctx.moveTo(x,y+s); ctx.lineTo(x+s,y+s); }
+      else if(side==='left')   { ctx.moveTo(x,y);   ctx.lineTo(x,y+s); }
+      else if(side==='right')  { ctx.moveTo(x+s,y); ctx.lineTo(x+s,y+s); }
+      ctx.stroke();
+    }
+  }
+
+  ctx.textAlign='center'; ctx.textBaseline='middle';
+  const fs=Math.max(8,Math.min(cellSize*0.85,14));
+  for(const cell of CELLS){
+    if(!cell.v) continue;
+    const{c,r,v}=cell;
+    if(r===1){
+      ctx.font=`bold ${fs}px Arial`; ctx.fillStyle='#cc2200';
+      ctx.fillText(v,cellX(c)+cellSize/2,MT/2);
+    } else if(r===52){
+      const x=cellX(c)+cellSize/2, y=MT+ROWS*cellSize+MB/2;
+      if(v==='Rampa 1'){ ctx.font=`${Math.max(6,fs*0.8)}px Arial`; ctx.fillStyle='#666600'; }
+      else { ctx.font=`bold ${fs}px Arial`; ctx.fillStyle='#0044bb'; }
+      ctx.fillText(v,x,y);
+    }
+  }
+
+  const scPx=10*cellSize, sbX=ML+COLS*cellSize-scPx-5, sbY=MT+ROWS*cellSize+MB-6;
+  ctx.strokeStyle='#555'; ctx.lineWidth=1.5;
+  ctx.beginPath(); ctx.moveTo(sbX,sbY); ctx.lineTo(sbX+scPx,sbY);
+  ctx.moveTo(sbX,sbY-4); ctx.lineTo(sbX,sbY+4);
+  ctx.moveTo(sbX+scPx,sbY-4); ctx.lineTo(sbX+scPx,sbY+4); ctx.stroke();
+  ctx.font=`${Math.max(7,fs*0.8)}px Arial`; ctx.fillStyle='#444'; ctx.textAlign='center';
+  ctx.fillText(`${(10*CELL_REAL).toFixed(1)} m`,sbX+scPx/2,sbY-7);
+
+  document.getElementById('zoomLabel').textContent = Math.round(cellSize/12*100)+'%';
+  syncSVG();
+}
+
+function zoom(dir){
+  const steps=[4,5,6,7,8,9,10,11,12,14,16,18,20,24,28,32,40];
+  let idx=steps.findIndex(s=>s>=cellSize);
+  if(idx===-1) idx=steps.length-1;
+  idx=Math.max(0,Math.min(steps.length-1,idx+dir));
+  cellSize=steps[idx];
+  draw();
+}
+
+function resetView(){
+  cellSize=12; panX=0; panY=0;
+  applyTransform(); draw();
+}
+
+function applyTransform(){
+  const scale = cellSize/12;
+  const t = `translate(${panX}px,${panY}px) scale(${scale})`;
+  canvas.style.transform = t;
+  canvas.style.transformOrigin = '0 0';
+  document.getElementById('conn-canvas').style.transform = t;
+  document.getElementById('svg-overlay').style.transform = t;
+}
+
+function syncSVG(){
+  const W = canvasW(), H = canvasH();
+  const svg = document.getElementById('svg-overlay');
+  svg.setAttribute('width', W);
+  svg.setAttribute('height', H);
+  svg.setAttribute('viewBox', `0 0 ${W} ${H}`);
+  const cc = document.getElementById('conn-canvas');
+  cc.width = W; cc.height = H;
+  applyTransform();
+}
+
+const CONN_CABLE_COLORS = {
+  ethernet: '#4488ff',
+  fibra:    '#ff8800',
+  wifi:     '#00cc88',
+  serial:   '#cc44ff',
+  consola:  '#ffcc00'
+};
+
+function drawConnections(){
+  const cc = document.getElementById('conn-canvas');
+  const cx2 = cc.getContext('2d');
+  cx2.clearRect(0, 0, cc.width, cc.height);
+  if (!connections || !elements) return;
+
+  for (const conn of connections) {
+    const src = elements.find(e => e.id === conn.origen_id);
+    const dst = elements.find(e => e.id === conn.destino_id);
+    if (!src || !dst) continue;
+
+    // Skip if either element's layer is hidden
+    if (src.capa_id && hiddenCapas.has(src.capa_id)) continue;
+    if (dst.capa_id && hiddenCapas.has(dst.capa_id)) continue;
+
+    const x1 = parseFloat(src.x), y1 = parseFloat(src.y);
+    const x2 = parseFloat(dst.x), y2 = parseFloat(dst.y);
+    const color = conn.color || CONN_CABLE_COLORS[conn.tipo] || '#4488ff';
+    const isSelected = conn.id === selectedConnId;
+
+    // Cable shadow
+    cx2.beginPath();
+    cx2.moveTo(x1, y1); cx2.lineTo(x2, y2);
+    cx2.strokeStyle = 'rgba(0,0,0,0.25)';
+    cx2.lineWidth = isSelected ? 9 : 7;
+    cx2.lineCap = 'round';
+    cx2.setLineDash([]);
+    cx2.stroke();
+
+    // Cable body
+    cx2.beginPath();
+    cx2.moveTo(x1, y1); cx2.lineTo(x2, y2);
+    cx2.strokeStyle = conn.activo == 1 ? color : '#666';
+    cx2.lineWidth = isSelected ? 6 : 4;
+    cx2.lineCap = 'round';
+    cx2.setLineDash(conn.activo == 1 ? [] : [10, 6]);
+    cx2.stroke();
+
+    // Cable highlight (shine effect)
+    cx2.beginPath();
+    cx2.moveTo(x1, y1); cx2.lineTo(x2, y2);
+    cx2.strokeStyle = 'rgba(255,255,255,0.3)';
+    cx2.lineWidth = 1.5;
+    cx2.lineCap = 'round';
+    cx2.setLineDash([]);
+    cx2.stroke();
+
+    // Label in the middle
+    if (conn.label) {
+      const mx = (x1 + x2) / 2, my = (y1 + y2) / 2;
+      const text = conn.label;
+      cx2.font = 'bold 11px Arial';
+      const tw = cx2.measureText(text).width;
+      cx2.fillStyle = 'rgba(22,33,62,0.85)';
+      cx2.beginPath();
+      cx2.roundRect(mx - tw/2 - 5, my - 9, tw + 10, 16, 4);
+      cx2.fill();
+      cx2.fillStyle = '#fff';
+      cx2.textAlign = 'center';
+      cx2.textBaseline = 'middle';
+      cx2.fillText(text, mx, my);
+    }
+
+    // Endpoints (connector dots)
+    for (const [ex, ey] of [[x1,y1],[x2,y2]]) {
+      cx2.beginPath();
+      cx2.arc(ex, ey, 4, 0, Math.PI*2);
+      cx2.fillStyle = color;
+      cx2.fill();
+      cx2.strokeStyle = '#fff';
+      cx2.lineWidth = 1.5;
+      cx2.setLineDash([]);
+      cx2.stroke();
+    }
+  }
+}
+
+// ═══════════════════════════════════════════════════════════
+// PAN
+// ═══════════════════════════════════════════════════════════
+const area = document.getElementById('canvas-area');
+
+area.addEventListener('mousedown', e => {
+  if(e.target.closest('.el-group') || e.target.closest('.conn-line')) return;
+  if(connectMode) return;
+  isPanning=true; panStartX=e.clientX; panStartY=e.clientY;
+  panStartScrollX=panX; panStartScrollY=panY;
+  area.style.cursor='grabbing';
+});
+window.addEventListener('mouseup', () => { isPanning=false; area.style.cursor = connectMode?'crosshair':'grab'; });
+window.addEventListener('mousemove', e => {
+  if(!isPanning) return;
+  panX = panStartScrollX + (e.clientX - panStartX);
+  panY = panStartScrollY + (e.clientY - panStartY);
+  applyTransform();
+});
+area.addEventListener('wheel', e => {
+  e.preventDefault();
+  zoom(e.deltaY<0?1:-1);
+}, {passive:false});
+
+// Touch pan
+let touchStart=null;
+area.addEventListener('touchstart', e => {
+  if(e.touches.length===1){ touchStart={x:e.touches[0].clientX,y:e.touches[0].clientY,px:panX,py:panY}; }
+},{passive:true});
+area.addEventListener('touchmove', e => {
+  if(e.touches.length===1 && touchStart){
+    e.preventDefault();
+    panX = touchStart.px+(e.touches[0].clientX-touchStart.x);
+    panY = touchStart.py+(e.touches[0].clientY-touchStart.y);
+    applyTransform();
+  }
+},{passive:false});
+area.addEventListener('touchend',()=>{ touchStart=null; });
+
+// ═══════════════════════════════════════════════════════════
+// NAVBAR
+// ═══════════════════════════════════════════════════════════
+function toggleNav(){
+  const nav=document.getElementById('navbar');
+  const layout=document.getElementById('layout');
+  const btn=document.getElementById('toggle-btn');
+  const hidden=nav.classList.toggle('hidden');
+  layout.classList.toggle('nav-hidden',hidden);
+  btn.textContent = hidden ? '☰' : '✕';
+}
+
+// ═══════════════════════════════════════════════════════════
+// ICONS PANEL
+// ═══════════════════════════════════════════════════════════
+let allIcons = [];
+let allCats  = [];
+
+async function loadIconsPanel(){
+  try {
+    const [iRes, cRes] = await Promise.all([fetch('/api/iconos.php'), fetch('/api/categorias.php')]);
+    allIcons = await iRes.json();
+    allCats  = await cRes.json();
+    renderIconsPanel('');
+  } catch(e) {
+    document.getElementById('icons-empty').textContent = 'Error al cargar iconos.';
+  }
+}
+
+function renderIconsPanel(filter){
+  const list = document.getElementById('icons-list');
+  const filtered = filter
+    ? allIcons.filter(i => i.nombre.toLowerCase().includes(filter.toLowerCase()))
+    : allIcons;
+
+  if(!filtered.length){
+    list.innerHTML = '<span id="icons-empty">' + (allIcons.length ? 'Sin resultados.' : 'No hay iconos. Cargá algunos en la página de Iconos.') + '</span>';
+    return;
+  }
+
+  // Group by category
+  const groups = {};
+  for(const ico of filtered){
+    const key = ico.categoria || 'Sin categoría';
+    if(!groups[key]) groups[key] = [];
+    groups[key].push(ico);
+  }
+
+  list.innerHTML = '';
+  for(const [cat, items] of Object.entries(groups)){
+    const grp = document.createElement('div');
+    grp.className = 'icon-cat-group';
+    const lbl = document.createElement('span');
+    lbl.className = 'icon-cat-label';
+    lbl.textContent = cat;
+    grp.appendChild(lbl);
+    const itemsDiv = document.createElement('div');
+    itemsDiv.className = 'icon-items';
+    for(const ico of items){
+      const el = document.createElement('div');
+      el.className = 'icon-item';
+      el.draggable = true;
+      el.dataset.iconoId = ico.id;
+      el.dataset.archivo = ico.archivo;
+      el.dataset.nombre  = ico.nombre;
+      el.innerHTML = `<img src="/uploads/iconos/${ico.archivo}" alt="${ico.nombre}"><span>${ico.nombre}</span>`;
+      el.addEventListener('dragstart', onIconDragStart);
+      itemsDiv.appendChild(el);
+    }
+    grp.appendChild(itemsDiv);
+    list.appendChild(grp);
+  }
+}
+
+function filterIcons(val){ renderIconsPanel(val.trim()); }
+
+// ═══════════════════════════════════════════════════════════
+// DRAG FROM PANEL → DROP ON SVG
+// ═══════════════════════════════════════════════════════════
+function onIconDragStart(e){
+  dragIconData = {
+    icono_id: parseInt(e.currentTarget.dataset.iconoId),
+    archivo:  e.currentTarget.dataset.archivo,
+    nombre:   e.currentTarget.dataset.nombre,
+  };
+  // ghost image
+  const ghost = document.getElementById('drop-ghost');
+  const ghostImg = document.getElementById('drop-ghost-img');
+  ghostImg.src = '/uploads/iconos/' + dragIconData.archivo;
+  ghost.style.display = 'block';
+  ghost.style.left = '-200px';
+  e.dataTransfer.setDragImage(ghost, 20, 20);
+  e.dataTransfer.effectAllowed = 'copy';
+}
+
+area.addEventListener('dragover', e => { e.preventDefault(); e.dataTransfer.dropEffect='copy'; });
+area.addEventListener('dragleave', () => { document.getElementById('drop-ghost').style.display='none'; });
+area.addEventListener('drop', async e => {
+  e.preventDefault();
+  document.getElementById('drop-ghost').style.display='none';
+  if(!dragIconData) return;
+  // Convert screen coords to canvas coords
+  const rect = area.getBoundingClientRect();
+  const scale = cellSize/12;
+  const cx = (e.clientX - rect.left - panX) / scale;
+  const cy = (e.clientY - rect.top  - panY) / scale;
+  await createElement(dragIconData.icono_id, dragIconData.nombre, cx, cy);
+  dragIconData = null;
+});
+
+// ═══════════════════════════════════════════════════════════
+// API CALLS
+// ═══════════════════════════════════════════════════════════
+async function loadElements(){
+  const res = await fetch('/api/elementos.php');
+  elements = await res.json();
+  window._elements = elements;
+}
+async function loadConnections(){
+  const res = await fetch('/api/conexiones.php');
+  connections = await res.json();
+  window._connections = connections;
+}
+
+async function createElement(icono_id, nombre, x, y){
+  try {
+    const res = await fetch('/api/elementos.php', {
+      method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({icono_id, label:nombre, x, y, capa_id: activeCapaId || null, propiedades:{}})
+    });
+    const data = await res.json();
+    if(!res.ok) throw new Error(data.error||'Error');
+    await loadElements();
+    renderSVG();
+    selectElement(data.id);
+  } catch(e){ alert('Error al crear elemento: '+e.message); }
+}
+
+async function updateElement(id, body){
+  try {
+    const res = await fetch('/api/elementos.php?id='+id, {
+      method:'PUT', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify(body)
+    });
+    if(!res.ok){ const d=await res.json(); throw new Error(d.error||'Error'); }
+  } catch(e){ alert('Error al actualizar: '+e.message); }
+}
+
+async function deleteElement(id){
+  try {
+    const res = await fetch('/api/elementos.php?id='+id, {method:'DELETE'});
+    if(!res.ok){ const d=await res.json(); throw new Error(d.error||'Error'); }
+    elements = elements.filter(e=>e.id!==id);
+    connections = connections.filter(c=>c.origen_id!==id && c.destino_id!==id);
+    deselectAll();
+    renderSVG();
+  } catch(e){ alert('Error al eliminar: '+e.message); }
+}
+
+async function createConnection(origen_id, destino_id, tipo, label, color){
+  try {
+    const res = await fetch('/api/conexiones.php', {
+      method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({origen_id, destino_id, tipo, label, color, activo:1, propiedades:{}})
+    });
+    const data = await res.json();
+    if(!res.ok) throw new Error(data.error||'Error');
+    await loadConnections();
+    renderSVG();
+  } catch(e){ alert('Error al crear conexión: '+e.message); }
+}
+
+async function deleteConnection(id){
+  try {
+    const res = await fetch('/api/conexiones.php?id='+id, {method:'DELETE'});
+    if(!res.ok){ const d=await res.json(); throw new Error(d.error||'Error'); }
+    connections = connections.filter(c=>c.id!==id);
+    renderSVG();
+    if(selectedElementId) updateConnList(selectedElementId);
+  } catch(e){ alert('Error al eliminar conexión: '+e.message); }
+}
+
+// ═══════════════════════════════════════════════════════════
+// SVG RENDER
+// ═══════════════════════════════════════════════════════════
+const ICO_SIZE = 32;
+const ICO_HALF = ICO_SIZE/2;
+
+function renderSVG(){
+  drawConnections();
+
+  const svg = document.getElementById('svg-overlay');
+  svg.innerHTML = '';
+
+  // Elements
+  const elG = document.createElementNS('http://www.w3.org/2000/svg','g');
+  elG.id = 'el-layer';
+  for(const el of elements){
+    const g = document.createElementNS('http://www.w3.org/2000/svg','g');
+    g.classList.add('el-group');
+    if(el.id===selectedElementId) g.classList.add('selected');
+    g.dataset.elId = el.id;
+    g.dataset.capaId = el.capa_id || '';
+
+    // Selection ring
+    const ring = document.createElementNS('http://www.w3.org/2000/svg','circle');
+    ring.setAttribute('cx',el.x); ring.setAttribute('cy',el.y);
+    ring.setAttribute('r',ICO_HALF+4);
+    ring.classList.add('el-ring');
+    g.appendChild(ring);
+
+    // Status indicator
+    const props = el.propiedades||{};
+    const statusColor = props.estado==='inactivo'?'#e94560': props.estado==='mantenimiento'?'#ffcc00':'#00cc88';
+    const dot = document.createElementNS('http://www.w3.org/2000/svg','circle');
+    dot.setAttribute('cx',el.x+ICO_HALF-3); dot.setAttribute('cy',el.y-ICO_HALF+3);
+    dot.setAttribute('r','4');
+    dot.setAttribute('fill',statusColor);
+    dot.setAttribute('stroke','#fff');
+    dot.setAttribute('stroke-width','1');
+    g.appendChild(dot);
+
+    if(el.icono_archivo){
+      const img = document.createElementNS('http://www.w3.org/2000/svg','image');
+      img.setAttribute('href','/uploads/iconos/'+el.icono_archivo);
+      img.setAttribute('x',el.x-ICO_HALF); img.setAttribute('y',el.y-ICO_HALF);
+      img.setAttribute('width',ICO_SIZE); img.setAttribute('height',ICO_SIZE);
+      g.appendChild(img);
+    } else {
+      const rect = document.createElementNS('http://www.w3.org/2000/svg','rect');
+      rect.setAttribute('x',el.x-ICO_HALF); rect.setAttribute('y',el.y-ICO_HALF);
+      rect.setAttribute('width',ICO_SIZE); rect.setAttribute('height',ICO_SIZE);
+      rect.setAttribute('fill','#0f3460'); rect.setAttribute('rx','4');
+      g.appendChild(rect);
+    }
+
+    // Label
+    const lbl = document.createElementNS('http://www.w3.org/2000/svg','text');
+    lbl.setAttribute('x',el.x); lbl.setAttribute('y',el.y+ICO_HALF+12);
+    lbl.setAttribute('text-anchor','middle');
+    lbl.classList.add('el-label');
+    lbl.textContent = el.label||'';
+    if(props.ip){ lbl.textContent += props.ip ? '' : ''; }
+    g.appendChild(lbl);
+
+    // IP below label
+    if(props.ip){
+      const iplbl = document.createElementNS('http://www.w3.org/2000/svg','text');
+      iplbl.setAttribute('x',el.x); iplbl.setAttribute('y',el.y+ICO_HALF+24);
+      iplbl.setAttribute('text-anchor','middle');
+      iplbl.setAttribute('font-size','9');
+      iplbl.setAttribute('fill','#555');
+      iplbl.classList.add('el-label');
+      iplbl.textContent = props.ip;
+      g.appendChild(iplbl);
+    }
+
+    // Events
+    setupElEvents(g, el);
+    elG.appendChild(g);
+  }
+  svg.appendChild(elG);
+  applyCapaVisibility();
+}
+
+// ═══════════════════════════════════════════════════════════
+// ELEMENT EVENTS (click, drag, contextmenu)
+// ═══════════════════════════════════════════════════════════
+let elDragging = false;
+let elDragId   = null;
+let elDragStartX=0, elDragStartY=0;
+let elOrigX=0, elOrigY=0;
+
+function setupElEvents(g, el){
+  g.addEventListener('click', e => {
+    e.stopPropagation();
+    if(connectMode){
+      handleConnectClick(el.id);
+      return;
+    }
+    if(!elDragging) selectElement(el.id);
+  });
+
+  g.addEventListener('mousedown', e => {
+    if(connectMode) return;
+    e.stopPropagation();
+    elDragging=false; elDragId=el.id;
+    elDragStartX=e.clientX; elDragStartY=e.clientY;
+    elOrigX=el.x; elOrigY=el.y;
+  });
+
+  g.addEventListener('contextmenu', e => {
+    e.preventDefault(); e.stopPropagation();
+    selectElement(el.id);
+    showCtxMenu(e.clientX, e.clientY);
+  });
+}
+
+window.addEventListener('mousemove', e => {
+  if(!elDragId) return;
+  const dx = e.clientX-elDragStartX;
+  const dy = e.clientY-elDragStartY;
+  if(!elDragging && Math.sqrt(dx*dx+dy*dy)>4) elDragging=true;
+  if(!elDragging) return;
+  const scale = cellSize/12;
+  const el = elements.find(x=>x.id===elDragId);
+  if(!el) return;
+  el.x = elOrigX + dx/scale;
+  el.y = elOrigY + dy/scale;
+  renderSVG();
+});
+
+window.addEventListener('mouseup', async e => {
+  if(!elDragId) return;
+  const id=elDragId; elDragId=null;
+  if(elDragging){
+    elDragging=false;
+    const el = elements.find(x=>x.id===id);
+    if(el) await updateElement(id, {x:el.x, y:el.y});
+  }
+});
+
+// Click on background → deselect
+area.addEventListener('click', e => {
+  if(connectMode) return;
+  const cc = document.getElementById('conn-canvas');
+  const isBg = e.target===area || e.target===canvas || e.target===cc || e.target===document.getElementById('svg-overlay');
+  if(!isBg) return;
+
+  // Hit-test connections on conn-canvas
+  const rect = area.getBoundingClientRect();
+  const scale = cellSize/12;
+  const mx = (e.clientX - rect.left - panX) / scale;
+  const my = (e.clientY - rect.top  - panY) / scale;
+  let hitConn = null;
+  for (const conn of connections) {
+    const src = elements.find(el=>el.id===conn.origen_id);
+    const dst = elements.find(el=>el.id===conn.destino_id);
+    if (!src||!dst) continue;
+    const dx = parseFloat(dst.x)-parseFloat(src.x), dy = parseFloat(dst.y)-parseFloat(src.y);
+    const len = Math.sqrt(dx*dx+dy*dy);
+    if(len===0) continue;
+    const t = Math.max(0, Math.min(1, ((mx-parseFloat(src.x))*dx + (my-parseFloat(src.y))*dy) / (len*len)));
+    const nearX = parseFloat(src.x)+t*dx, nearY = parseFloat(src.y)+t*dy;
+    const dist = Math.sqrt((mx-nearX)**2+(my-nearY)**2);
+    if(dist < 8) { hitConn = conn; break; }
+  }
+  if(hitConn){ selectConn(hitConn.id); return; }
+  deselectAll();
+});
+
+// ═══════════════════════════════════════════════════════════
+// SELECTION
+// ═══════════════════════════════════════════════════════════
+function selectElement(id){
+  selectedElementId=id; selectedConnId=null;
+  renderSVG();
+  openRightPanel(id);
+  hideCtxMenu();
+}
+
+function selectConn(id){
+  selectedConnId=id; selectedElementId=null;
+  renderSVG();
+  closeRightPanel();
+  hideCtxMenu();
+}
+
+function deselectAll(){
+  selectedElementId=null; selectedConnId=null;
+  renderSVG();
+  closeRightPanel();
+  hideCtxMenu();
+}
+
+function openRightPanel(elId){
+  const el = elements.find(e=>e.id===elId);
+  if(!el) return;
+  const props = el.propiedades||{};
+  document.getElementById('prop-label').value   = el.label||'';
+  document.getElementById('prop-ip').value       = props.ip||'';
+  document.getElementById('prop-mac').value      = props.mac||'';
+  document.getElementById('prop-so').value       = props.so||'';
+  document.getElementById('prop-version').value  = props.version||'';
+  document.getElementById('prop-ram').value      = props.ram||'';
+  document.getElementById('prop-puertos').value  = props.puertos||'';
+  document.getElementById('prop-desc').value     = props.descripcion||'';
+  document.getElementById('prop-tipo').value     = props.tipo||'';
+  document.getElementById('prop-estado').value   = props.estado||'activo';
+  // Populate capa selector
+  const sel = document.getElementById('prop-capa');
+  sel.innerHTML = '<option value="">Sin capa</option>' +
+    capas.map(c=>`<option value="${c.id}" ${el.capa_id==c.id?'selected':''}>${c.nombre}</option>`).join('');
+  propsDirty=false;
+  updateConnList(elId);
+  document.getElementById('panel-right').classList.add('open');
+}
+
+function closeRightPanel(){
+  document.getElementById('panel-right').classList.remove('open');
+}
+
+function propChanged(){ propsDirty=true; }
+
+function updateConnList(elId){
+  const conns = connections.filter(c=>c.origen_id===elId||c.destino_id===elId);
+  const cont = document.getElementById('conn-list-items');
+  if(!conns.length){ cont.innerHTML='<div style="color:#555;font-size:0.8em;">Sin conexiones</div>'; return; }
+  cont.innerHTML='';
+  for(const c of conns){
+    const otherId = c.origen_id===elId ? c.destino_id : c.origen_id;
+    const other   = elements.find(e=>e.id===otherId);
+    const div = document.createElement('div');
+    div.className = 'conn-item';
+    div.innerHTML = `
+      <div class="conn-item-info">
+        <div class="conn-dot" style="background:${c.color||'#4488ff'}"></div>
+        <span class="conn-label">${c.tipo} → ${other?other.label||'ID '+otherId:'?'}${c.label?' ('+c.label+')':''}</span>
+      </div>
+      <button class="conn-del" title="Eliminar conexión" onclick="deleteConnection(${c.id})">✕</button>
+    `;
+    cont.appendChild(div);
+  }
+}
+
+async function saveProps(){
+  if(!selectedElementId) return;
+  const el = elements.find(e=>e.id===selectedElementId);
+  if(!el) return;
+  el.label = document.getElementById('prop-label').value;
+  const capaVal = document.getElementById('prop-capa').value;
+  el.capa_id = capaVal ? parseInt(capaVal) : null;
+  const props = {
+    ip:          document.getElementById('prop-ip').value,
+    mac:         document.getElementById('prop-mac').value,
+    so:          document.getElementById('prop-so').value,
+    version:     document.getElementById('prop-version').value,
+    ram:         document.getElementById('prop-ram').value,
+    puertos:     document.getElementById('prop-puertos').value,
+    descripcion: document.getElementById('prop-desc').value,
+    tipo:        document.getElementById('prop-tipo').value,
+    estado:      document.getElementById('prop-estado').value,
+  };
+  el.propiedades = props;
+  await updateElement(selectedElementId, {label:el.label, capa_id: el.capa_id, propiedades:props});
+  propsDirty=false;
+  renderSVG();
+}
+
+async function deleteSelected(){
+  if(!selectedElementId) return;
+  if(!confirm('¿Eliminar este elemento y todas sus conexiones?')) return;
+  await deleteElement(selectedElementId);
+}
+
+// ═══════════════════════════════════════════════════════════
+// CONNECT MODE
+// ═══════════════════════════════════════════════════════════
+function toggleConnectMode(){
+  connectMode = !connectMode;
+  connectOriginId = null;
+  const btn = document.getElementById('btn-connect');
+  const svg = document.getElementById('svg-overlay');
+  const area = document.getElementById('canvas-area');
+  const hint = document.getElementById('connect-hint');
+  if(connectMode){
+    btn.classList.add('active');
+    svg.classList.add('connect-mode');
+    area.classList.add('connect-mode');
+    hint.style.display='block';
+    hint.textContent='Modo conexión: hacé click en el dispositivo origen';
+  } else {
+    btn.classList.remove('active');
+    svg.classList.remove('connect-mode');
+    area.classList.remove('connect-mode');
+    hint.style.display='none';
+    connectOriginId=null;
+  }
+}
+
+function handleConnectClick(elId){
+  if(!connectOriginId){
+    connectOriginId=elId;
+    const hint=document.getElementById('connect-hint');
+    const el=elements.find(e=>e.id===elId);
+    hint.textContent=`Origen: ${el?el.label||'#'+elId:'?'}  →  Hacé click en el destino`;
+  } else {
+    if(elId===connectOriginId){ alert('No podés conectar un elemento consigo mismo.'); return; }
+    pendingConn={origen_id:connectOriginId, destino_id:elId};
+    toggleConnectMode();
+    openModal();
+  }
+}
+
+// ═══════════════════════════════════════════════════════════
+// MODAL
+// ═══════════════════════════════════════════════════════════
+function openModal(){
+  updateModalColor();
+  document.getElementById('modal-label').value='';
+  document.getElementById('modal-overlay').classList.add('open');
+}
+function closeModal(){
+  document.getElementById('modal-overlay').classList.remove('open');
+  pendingConn = null;
+}
+function updateModalColor(){
+  const tipo=document.getElementById('modal-tipo').value;
+  const color=CONN_COLORS[tipo]||'#4488ff';
+  document.getElementById('modal-color').value=color;
+  document.getElementById('modal-color-preview').style.background=color;
+}
+async function confirmConnection(){
+  if(!pendingConn) return;
+  const origen_id  = pendingConn.origen_id;
+  const destino_id = pendingConn.destino_id;
+  const tipo  = document.getElementById('modal-tipo').value;
+  const label = document.getElementById('modal-label').value.trim();
+  const color = document.getElementById('modal-color').value;
+  closeModal();
+  await createConnection(origen_id, destino_id, tipo, label, color);
+}
+
+// ═══════════════════════════════════════════════════════════
+// CONTEXT MENU
+// ═══════════════════════════════════════════════════════════
+function showCtxMenu(x, y){
+  const menu=document.getElementById('ctx-menu');
+  menu.style.display='block';
+  menu.style.left=x+'px'; menu.style.top=y+'px';
+  // Adjust if off-screen
+  const rect=menu.getBoundingClientRect();
+  if(rect.right>window.innerWidth)  menu.style.left=(x-rect.width)+'px';
+  if(rect.bottom>window.innerHeight) menu.style.top=(y-rect.height)+'px';
+}
+function hideCtxMenu(){ document.getElementById('ctx-menu').style.display='none'; }
+document.addEventListener('click', hideCtxMenu);
+document.addEventListener('contextmenu', e=>{ if(!e.target.closest('.el-group')) hideCtxMenu(); });
+
+function ctxAction(action){
+  hideCtxMenu();
+  if(action==='props') openRightPanel(selectedElementId);
+  else if(action==='connect'){
+    connectOriginId=selectedElementId;
+    if(!connectMode) toggleConnectMode();
+    connectOriginId=selectedElementId;
+    const el=elements.find(e=>e.id===selectedElementId);
+    document.getElementById('connect-hint').textContent=`Origen: ${el?el.label||'#'+selectedElementId:'?'}  →  Hacé click en el destino`;
+  }
+  else if(action==='delete') deleteSelected();
+}
+
+// ═══════════════════════════════════════════════════════════
+// INIT
+// ═══════════════════════════════════════════════════════════
+// ─── CAPAS ──────────────────────────────────────────────────────
+
+function switchTab(tab) {
+  document.getElementById('tab-devices').classList.toggle('active', tab === 'devices');
+  document.getElementById('tab-capas').classList.toggle('active', tab === 'capas');
+  document.getElementById('panel-icons-wrap').classList.toggle('hidden', tab !== 'devices');
+  document.getElementById('panel-capas').classList.toggle('active', tab === 'capas');
+}
+
+async function loadCapas() {
+  const res = await fetch('/api/capas.php');
+  capas = await res.json();
+  if (capas.length && !activeCapaId) {
+    activeCapaId = capas[capas.length - 1].id; // default: última (General)
+  }
+  renderCapasPanel();
+  updateActiveCapaBadge();
+}
+
+function renderCapasPanel() {
+  const list = document.getElementById('capas-list');
+  list.innerHTML = '';
+  for (const capa of capas) {
+    const hidden = hiddenCapas.has(capa.id);
+    const isActive = capa.id === activeCapaId;
+    const row = document.createElement('div');
+    row.className = 'capa-row' + (isActive ? ' active-layer' : '');
+    row.title = 'Click para activar esta capa';
+    row.innerHTML = `
+      <div class="capa-color" style="background:${capa.color};"></div>
+      <span class="capa-name${hidden ? ' muted' : ''}">${capa.nombre}</span>
+      <button class="capa-eye" title="${hidden ? 'Mostrar' : 'Ocultar'}" onclick="toggleCapaVisibility(${capa.id}, event)">
+        ${hidden ? '🙈' : '👁'}
+      </button>
+      <button class="capa-del" title="Eliminar capa" onclick="deleteCapa(${capa.id}, event)">✕</button>
+    `;
+    row.addEventListener('click', () => setActiveCapa(capa.id));
+    list.appendChild(row);
+  }
+}
+
+function setActiveCapa(id) {
+  activeCapaId = id;
+  renderCapasPanel();
+  updateActiveCapaBadge();
+}
+
+function updateActiveCapaBadge() {
+  const capa = capas.find(c => c.id === activeCapaId);
+  document.getElementById('active-capa-name').textContent = capa ? capa.nombre : '—';
+}
+
+function toggleCapaVisibility(id, e) {
+  e.stopPropagation();
+  if (hiddenCapas.has(id)) hiddenCapas.delete(id);
+  else hiddenCapas.add(id);
+  renderCapasPanel();
+  applyCapaVisibility();
+}
+
+function applyCapaVisibility() {
+  const svg = document.getElementById('svg-overlay');
+  // elementos
+  svg.querySelectorAll('.el-group').forEach(g => {
+    const capaId = parseInt(g.dataset.capaId) || null;
+    g.style.display = capaId && hiddenCapas.has(capaId) ? 'none' : '';
+  });
+  // conexiones: ocultar si origen o destino está en capa oculta
+  const elements = window._elements || [];
+  svg.querySelectorAll('.conn-line, .conn-label-text').forEach(el => {
+    const connId = parseInt(el.dataset.connId);
+    const conn = (window._connections || []).find(c => c.id === connId);
+    if (!conn) return;
+    const ori = elements.find(e => e.id === conn.origen_id);
+    const dst = elements.find(e => e.id === conn.destino_id);
+    const hide = (ori && hiddenCapas.has(ori.capa_id)) || (dst && hiddenCapas.has(dst.capa_id));
+    el.style.display = hide ? 'none' : '';
+  });
+}
+
+async function promptNuevaCapa() {
+  const nombre = prompt('Nombre de la nueva capa:');
+  if (!nombre || !nombre.trim()) return;
+  const color = prompt('Color (ej: #ff4444):', '#' + Math.floor(Math.random()*0xFFFFFF).toString(16).padStart(6,'0'));
+  const res = await fetch('/api/capas.php', {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({ nombre: nombre.trim(), color: color || '#aaaaaa' })
+  });
+  const data = await res.json();
+  capas.push({ id: data.id, nombre: nombre.trim(), color: color || '#aaaaaa', visible: 1 });
+  setActiveCapa(data.id);
+  renderCapasPanel();
+}
+
+async function deleteCapa(id, e) {
+  e.stopPropagation();
+  const capa = capas.find(c => c.id === id);
+  if (!confirm(`¿Eliminar la capa "${capa?.nombre}"? Los elementos quedarán sin capa.`)) return;
+  await fetch(`/api/capas.php?id=${id}`, { method: 'DELETE' });
+  capas = capas.filter(c => c.id !== id);
+  hiddenCapas.delete(id);
+  if (activeCapaId === id) activeCapaId = capas[capas.length - 1]?.id || null;
+  renderCapasPanel();
+  updateActiveCapaBadge();
+  await loadElements();
+  renderSVG();
+}
+
+// ─── INIT ────────────────────────────────────────────────────────
+
+async function init(){
+  draw();
+  try { await Promise.all([loadIconsPanel(), loadCapas()]); }
+  catch(e){ console.error('Error cargando panel/capas:', e); }
+  try {
+    await Promise.all([loadElements(), loadConnections()]);
+    renderSVG();
+  } catch(e){
+    console.error('Error cargando datos:', e);
+  }
+}
+
+init();
+</script>
+</body>
+</html>

@@ -1,0 +1,390 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Gestión de Iconos — Depósito</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { background: #1a1a2e; font-family: Arial, sans-serif; color: #eee; min-height: 100vh; }
+
+  #header {
+    background: #16213e;
+    padding: 12px 20px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    border-bottom: 2px solid #0f3460;
+  }
+  #header h1 { font-size: 1.2em; color: #e94560; }
+  #header a {
+    background: #0f3460; border: 1px solid #e94560; color: #fff;
+    padding: 6px 14px; border-radius: 4px; font-size: 0.85em; text-decoration: none;
+  }
+  #header a:hover { background: #e94560; }
+
+  #main {
+    max-width: 960px;
+    margin: 30px auto;
+    padding: 0 20px;
+    display: flex;
+    flex-direction: column;
+    gap: 28px;
+  }
+
+  .card {
+    background: #16213e;
+    border: 1px solid #0f3460;
+    border-radius: 8px;
+    padding: 20px;
+  }
+  .card h2 { font-size: 1em; color: #e94560; margin-bottom: 16px; letter-spacing: 0.03em; }
+
+  /* Upload form */
+  #upload-form {
+    display: grid;
+    grid-template-columns: 1fr 1fr auto;
+    gap: 12px;
+    align-items: end;
+    margin-bottom: 16px;
+  }
+  @media (max-width: 600px) {
+    #upload-form { grid-template-columns: 1fr; }
+  }
+  .form-group { display: flex; flex-direction: column; gap: 6px; }
+  .form-group label { font-size: 0.8em; color: #aaa; }
+  .form-group input, .form-group select {
+    background: #0f3460;
+    border: 1px solid #1a4a8a;
+    color: #eee;
+    padding: 8px 10px;
+    border-radius: 4px;
+    font-size: 0.9em;
+    outline: none;
+  }
+  .form-group input:focus, .form-group select:focus { border-color: #e94560; }
+  .form-group select option { background: #0f3460; }
+
+  #drop-zone {
+    border: 2px dashed #0f3460;
+    border-radius: 6px;
+    padding: 36px 20px;
+    text-align: center;
+    color: #888;
+    cursor: pointer;
+    transition: border-color 0.2s, color 0.2s, background 0.2s;
+    position: relative;
+  }
+  #drop-zone.drag-over { border-color: #e94560; color: #eee; background: rgba(233,69,96,0.05); }
+  #drop-zone svg { display: block; margin: 0 auto 8px; }
+  #drop-zone .dz-hint { font-size: 0.88em; margin-top: 4px; }
+  #drop-zone .dz-sub { font-size: 0.75em; margin-top: 4px; color: #666; }
+  #drop-zone .dz-file-name { font-size: 0.85em; color: #e94560; margin-top: 6px; font-weight: bold; }
+  #file-input { display: none; }
+
+  .btn-primary {
+    background: #e94560; border: none; color: #fff;
+    padding: 9px 20px; border-radius: 4px; cursor: pointer;
+    font-size: 0.9em; font-weight: bold; white-space: nowrap;
+    transition: background 0.15s;
+  }
+  .btn-primary:hover { background: #c0002a; }
+  .btn-primary:disabled { background: #555; cursor: not-allowed; }
+
+  /* Upload progress */
+  #upload-status {
+    font-size: 0.85em;
+    padding: 8px 12px;
+    border-radius: 4px;
+    display: none;
+  }
+  #upload-status.ok { background: rgba(0,200,100,0.15); color: #00cc64; border: 1px solid #00cc64; }
+  #upload-status.err { background: rgba(233,69,96,0.15); color: #e94560; border: 1px solid #e94560; }
+
+  /* Icons grid */
+  .cat-section { margin-bottom: 24px; }
+  .cat-title {
+    font-size: 0.8em;
+    color: #e94560;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    margin-bottom: 12px;
+    padding-bottom: 6px;
+    border-bottom: 1px solid #0f3460;
+  }
+  .icons-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(110px, 1fr));
+    gap: 12px;
+  }
+  .icon-card {
+    background: #0f3460;
+    border: 1px solid #1a4a8a;
+    border-radius: 6px;
+    padding: 12px 8px 10px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 7px;
+    position: relative;
+    transition: border-color 0.15s;
+  }
+  .icon-card:hover { border-color: #e94560; }
+  .icon-card img {
+    width: 52px; height: 52px;
+    object-fit: contain;
+    image-rendering: auto;
+  }
+  .icon-card .icon-name {
+    font-size: 0.72em;
+    color: #ccc;
+    text-align: center;
+    word-break: break-word;
+    max-width: 100%;
+    line-height: 1.3;
+  }
+  .icon-card .icon-cat {
+    font-size: 0.65em;
+    color: #777;
+    text-align: center;
+  }
+  .icon-card .del-btn {
+    position: absolute;
+    top: 5px; right: 5px;
+    background: rgba(233,69,96,0.8);
+    border: none;
+    color: #fff;
+    border-radius: 50%;
+    width: 20px; height: 20px;
+    font-size: 0.75em;
+    cursor: pointer;
+    display: flex; align-items: center; justify-content: center;
+    opacity: 0;
+    transition: opacity 0.15s;
+    line-height: 1;
+  }
+  .icon-card:hover .del-btn { opacity: 1; }
+  .icon-card .del-btn:hover { background: #e94560; }
+
+  #empty-msg { color: #555; font-size: 0.9em; padding: 20px 0; }
+
+  /* Loading spinner */
+  .spinner {
+    display: inline-block;
+    width: 20px; height: 20px;
+    border: 2px solid #333;
+    border-top-color: #e94560;
+    border-radius: 50%;
+    animation: spin 0.7s linear infinite;
+    vertical-align: middle;
+    margin-right: 6px;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+</style>
+</head>
+<body>
+<div id="header">
+  <h1>Gestión de Iconos</h1>
+  <a href="plano.html">&larr; Volver al plano</a>
+</div>
+
+<div id="main">
+  <div class="card">
+    <h2>Subir nuevo icono</h2>
+    <div id="upload-form">
+      <div class="form-group">
+        <label for="input-nombre">Nombre del icono</label>
+        <input type="text" id="input-nombre" placeholder="Ej: Switch Cisco 2960">
+      </div>
+      <div class="form-group">
+        <label for="input-cat">Categoría</label>
+        <select id="input-cat">
+          <option value="">-- Sin categoría --</option>
+        </select>
+      </div>
+      <button class="btn-primary" id="btn-upload" onclick="uploadIcon()" disabled>Subir</button>
+    </div>
+
+    <div id="drop-zone" onclick="document.getElementById('file-input').click()">
+      <svg width="36" height="36" fill="none" stroke="#555" stroke-width="2" viewBox="0 0 24 24">
+        <path d="M12 16V4m0 0L8 8m4-4l4 4"/>
+        <rect x="2" y="14" width="20" height="8" rx="2"/>
+      </svg>
+      <p class="dz-hint">Arrastrá una imagen aquí o hacé click para seleccionar</p>
+      <p class="dz-sub">PNG · JPG · SVG · WebP</p>
+      <p class="dz-file-name" id="dz-fname"></p>
+    </div>
+    <input type="file" id="file-input" accept=".png,.jpg,.jpeg,.svg,.webp,image/*">
+
+    <div id="upload-status"></div>
+  </div>
+
+  <div class="card">
+    <h2>Iconos cargados</h2>
+    <div id="icons-container">
+      <span id="empty-msg">Cargando...</span>
+    </div>
+  </div>
+</div>
+
+<script>
+let selectedFile = null;
+
+// ── File input ──────────────────────────────────────────────
+document.getElementById('file-input').addEventListener('change', e => {
+  if (e.target.files[0]) setFile(e.target.files[0]);
+  e.target.value = '';
+});
+
+const dz = document.getElementById('drop-zone');
+dz.addEventListener('dragover', e => { e.preventDefault(); dz.classList.add('drag-over'); });
+dz.addEventListener('dragleave', () => dz.classList.remove('drag-over'));
+dz.addEventListener('drop', e => {
+  e.preventDefault();
+  dz.classList.remove('drag-over');
+  if (e.dataTransfer.files[0]) setFile(e.dataTransfer.files[0]);
+});
+
+function setFile(file) {
+  selectedFile = file;
+  document.getElementById('dz-fname').textContent = file.name;
+  document.getElementById('btn-upload').disabled = false;
+}
+
+// ── Upload ──────────────────────────────────────────────────
+async function uploadIcon() {
+  if (!selectedFile) return;
+  const nombre = document.getElementById('input-nombre').value.trim() || selectedFile.name.replace(/\.[^.]+$/, '');
+  const catId  = document.getElementById('input-cat').value;
+
+  const fd = new FormData();
+  fd.append('nombre', nombre);
+  fd.append('categoria_id', catId);
+  fd.append('file', selectedFile);
+
+  const btn = document.getElementById('btn-upload');
+  btn.disabled = true;
+  btn.textContent = 'Subiendo…';
+  showStatus('', '');
+
+  try {
+    const res = await fetch('/api/iconos.php', { method: 'POST', body: fd });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || 'Error al subir');
+    showStatus('Icono subido correctamente.', 'ok');
+    selectedFile = null;
+    document.getElementById('dz-fname').textContent = '';
+    document.getElementById('input-nombre').value = '';
+    await loadIcons();
+  } catch(err) {
+    showStatus('Error: ' + err.message, 'err');
+  } finally {
+    btn.disabled = false;
+    btn.textContent = 'Subir';
+  }
+}
+
+function showStatus(msg, type) {
+  const el = document.getElementById('upload-status');
+  el.textContent = msg;
+  el.className = type;
+  el.style.display = msg ? 'block' : 'none';
+  if (msg && type === 'ok') setTimeout(() => { el.style.display = 'none'; }, 3000);
+}
+
+// ── Categories ──────────────────────────────────────────────
+async function loadCats() {
+  try {
+    const res = await fetch('/api/categorias.php');
+    const cats = await res.json();
+    const sel = document.getElementById('input-cat');
+    for (const c of cats) {
+      const opt = document.createElement('option');
+      opt.value = c.id;
+      opt.textContent = c.nombre;
+      sel.appendChild(opt);
+    }
+    return cats;
+  } catch(e) {
+    return [];
+  }
+}
+
+// ── Icons ───────────────────────────────────────────────────
+async function loadIcons() {
+  const container = document.getElementById('icons-container');
+  container.innerHTML = '<span id="empty-msg"><span class="spinner"></span> Cargando...</span>';
+  try {
+    const res = await fetch('/api/iconos.php');
+    const iconos = await res.json();
+    renderIcons(iconos);
+  } catch(e) {
+    container.innerHTML = '<span id="empty-msg" style="color:#e94560;">Error al cargar iconos.</span>';
+  }
+}
+
+function renderIcons(iconos) {
+  const container = document.getElementById('icons-container');
+  container.innerHTML = '';
+
+  if (!iconos.length) {
+    container.innerHTML = '<span id="empty-msg">Todavía no hay iconos cargados.</span>';
+    return;
+  }
+
+  // Group by category
+  const groups = {};
+  for (const ico of iconos) {
+    const key = ico.categoria || 'Sin categoría';
+    if (!groups[key]) groups[key] = [];
+    groups[key].push(ico);
+  }
+
+  for (const [cat, list] of Object.entries(groups)) {
+    const section = document.createElement('div');
+    section.className = 'cat-section';
+    const title = document.createElement('div');
+    title.className = 'cat-title';
+    title.textContent = cat + ` (${list.length})`;
+    section.appendChild(title);
+
+    const grid = document.createElement('div');
+    grid.className = 'icons-grid';
+
+    for (const ico of list) {
+      const card = document.createElement('div');
+      card.className = 'icon-card';
+      card.innerHTML = `
+        <button class="del-btn" title="Eliminar" onclick="deleteIcon(${ico.id}, this)">✕</button>
+        <img src="/uploads/iconos/${ico.archivo}" alt="${ico.nombre}" onerror="this.src='data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 24 24%22><text y=%2218%22 font-size=%2218%22>📦</text></svg>'">
+        <span class="icon-name" title="${ico.nombre}">${ico.nombre}</span>
+      `;
+      grid.appendChild(card);
+    }
+    section.appendChild(grid);
+    container.appendChild(section);
+  }
+}
+
+async function deleteIcon(id, btn) {
+  if (!confirm('¿Eliminar este icono?')) return;
+  btn.disabled = true;
+  try {
+    const res = await fetch('/api/iconos.php?id=' + id, { method: 'DELETE' });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || 'Error');
+    await loadIcons();
+  } catch(e) {
+    alert('Error al eliminar: ' + e.message);
+    btn.disabled = false;
+  }
+}
+
+// ── Init ────────────────────────────────────────────────────
+(async () => {
+  await loadCats();
+  await loadIcons();
+})();
+</script>
+</body>
+</html>

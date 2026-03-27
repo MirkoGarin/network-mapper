@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100" width="100" height="100">
+  <!-- Pantalla -->
+  <rect x="18" y="12" width="64" height="46" rx="4" fill="#111"/>
+  <rect x="23" y="17" width="54" height="36" rx="2" fill="white"/>
+  <!-- Bisagra -->
+  <rect x="14" y="56" width="72" height="6" rx="2" fill="#111"/>
+  <!-- Base teclado -->
+  <path d="M8 62 L92 62 L86 82 L14 82 Z" fill="#111"/>
+  <!-- Teclado -->
+  <rect x="20" y="66" width="60" height="10" rx="2" fill="white" opacity="0.2"/>
+  <!-- Touchpad -->
+  <rect x="38" y="70" width="24" height="6" rx="2" fill="white" opacity="0.35"/>
+</svg>
